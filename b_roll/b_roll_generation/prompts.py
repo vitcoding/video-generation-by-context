@@ -38,7 +38,8 @@ Guidelines:
 - Each segment should be exactly 5 seconds long
 - Importance score: 1-3 (low), 4-6 (medium), 7-10 (high)
 - Image prompts should be detailed and specific for AI image generation
-- Image prompts should focus on characters, people, and visual scenes without text
+- Image prompts should focus on characters, people, and visual scenes without any text, letters, or written content
+- Image prompts should avoid any mention of text, signs, labels, or written elements
 - Video prompts should include camera angles, lighting, movement, style
 - Video prompts should focus on dynamic scenes with character interactions and movement
 - Focus on themes that would benefit from visual support
@@ -59,11 +60,13 @@ Maximum segments to select: {max_segments}
 
 Identify the most important story themes and create detailed prompts for both image and video generation. Focus on themes that would benefit most from visual support.
 
+IMPORTANT: For image prompts, avoid any text, letters, signs, or written content. Focus on visual scenes, people, objects, and environments without any textual elements.
+
 Return only the JSON response with segments sorted by importance_score (highest first).
 """
 
 # Negative prompts for image generation
-NEGATIVE_PROMPT_IMAGE = "blur, low quality, distorted, ugly, watermark, text, words, letters, signs, captions, subtitles"
+NEGATIVE_PROMPT_IMAGE = "blur, low quality, distorted, ugly, watermark, text, words, letters, signs, captions, subtitles, typography, fonts, writing, inscriptions, labels, logos, brand names, any alphanumeric characters, any symbols that represent text, any visual elements that could be interpreted as text"
 
 # Negative prompts for video generation
 NEGATIVE_PROMPT_VIDEO = "blur, distort, low quality, static image, static scene, no movement, still frame"
