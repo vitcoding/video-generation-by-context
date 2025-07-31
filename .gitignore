@@ -1,0 +1,12 @@
+__pycache__/
+.vscode/
+.venv/
+*.env
+
+*temp*
+*.log
+
+b_roll/data/*
+!b_roll/data/video_generation/audio_transcript/data_here
+b_roll/data_mock/*
+!b_roll/data_mock/video_generation/audio_transcript/data_here

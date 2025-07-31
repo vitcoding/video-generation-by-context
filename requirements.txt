@@ -1,0 +1,9 @@
+# Core dependencies for video_b_roll project
+openai==1.97.1
+python-dotenv==1.1.1
+fal-client==0.7.0
+requests==2.32.4
+
+# Optional dependencies for enhanced functionality
+pathlib2==2.3.7.post1
+typing-extensions==4.14.1
