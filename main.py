@@ -104,11 +104,11 @@ if __name__ == "__main__":
 
     # File archiving functionality
     # Set to False to disable archiving
-    ENABLE_ARCHIVING = True
-    # ENABLE_ARCHIVING = False
+    # ENABLE_ARCHIVING = True
+    ENABLE_ARCHIVING = False
     # Set to False to keep original files
-    DELETE_ORIGINALS = True
-    # DELETE_ORIGINALS = False
+    # DELETE_ORIGINALS = True
+    DELETE_ORIGINALS = False
 
     archive_files(
         enable_archiving=ENABLE_ARCHIVING, delete_originals=DELETE_ORIGINALS
