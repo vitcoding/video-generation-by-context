@@ -191,12 +191,13 @@ def process_video_with_broll(
             )
 
             # Add transformation for this B-roll segment
+            broll_width = VIDEO_RESOLUTION.split("x")[0]
             transformation = {
                 "overlay": {
                     "resource_type": "video",
                     "public_id": broll_video_public_id,
                 },
-                "width": "720",
+                "width": broll_width,
                 "crop": "fit",
                 "gravity": "north",  # Position the B-roll at the top
                 "start_offset": start_time,
