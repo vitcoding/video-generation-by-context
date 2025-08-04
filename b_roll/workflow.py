@@ -62,7 +62,9 @@ class UnifiedWorkflow:
         Args:
             max_segments: Maximum number of segments to generate (default: 3)
         """
-        self.broll_analyzer = BRollAnalyzer(max_segments=max_segments)
+        self.broll_analyzer = BRollAnalyzer(
+            segment_duration=VIDEO_DURATION, max_segments=max_segments
+        )
         self.image_generator = ImageGenerator()
         self.video_generator = KlingImageToVideoGenerator()
         self.max_segments = max_segments
@@ -234,6 +236,8 @@ class UnifiedWorkflow:
                     image_path=str(image_path),
                     prompt=video_prompt,
                     aspect_ratio=IMAGE_ASPECT_RATIO,
+                    fps=VIDEO_FPS,
+                    resolution=VIDEO_RESOLUTION,
                 )
 
                 if video_result:

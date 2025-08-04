@@ -164,6 +164,8 @@ class KlingImageToVideoGenerator:
         image_path: str,
         prompt: str,
         aspect_ratio: str = IMAGE_ASPECT_RATIO,
+        fps: int = VIDEO_FPS,
+        resolution: str = VIDEO_RESOLUTION,
     ) -> Optional[Dict]:
         """
         Generate video from image using Kling 1.6 Pro
@@ -172,6 +174,8 @@ class KlingImageToVideoGenerator:
             image_path: Path to input image
             prompt: Video generation prompt
             aspect_ratio: Video aspect ratio (16:9, 9:16, 1:1)
+            fps: Frames per second for video generation
+            resolution: Video resolution (e.g., "720x1280")
 
         Returns:
             Dictionary with video information or None if failed
@@ -182,6 +186,8 @@ class KlingImageToVideoGenerator:
                 f"📝 Prompt: {prompt[:100]}..."
             )  # Truncate long prompts
             logger.info(f"📐 Aspect Ratio: {aspect_ratio}")
+            logger.info(f"🎬 FPS: {fps}")
+            logger.info(f"📺 Resolution: {resolution}")
 
             # Upload image first
             image_url = self.upload_image(image_path)
@@ -195,6 +201,8 @@ class KlingImageToVideoGenerator:
                     "prompt": prompt,
                     "duration": DEFAULT_VIDEO_DURATION,
                     "aspect_ratio": aspect_ratio,
+                    "fps": fps,
+                    "resolution": resolution,
                     "negative_prompt": NEGATIVE_PROMPT_VIDEO,
                     "cfg_scale": DEFAULT_CFG_SCALE,
                 },
@@ -209,6 +217,8 @@ class KlingImageToVideoGenerator:
                     "image_url": image_url,
                     "prompt": prompt,
                     "aspect_ratio": aspect_ratio,
+                    "fps": fps,
+                    "resolution": resolution,
                     "duration": "5s",
                     "fal_result": result,
                 }
@@ -293,6 +303,8 @@ class KlingImageToVideoGenerator:
                 image_path=image_path,
                 prompt=video_prompt,
                 aspect_ratio=aspect_ratio,
+                fps=VIDEO_FPS,
+                resolution=VIDEO_RESOLUTION,
             )
 
             if video_result:

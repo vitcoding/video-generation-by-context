@@ -227,13 +227,20 @@ class MockKlingImageToVideoGenerator:
         return mock_image_url
 
     def generate_video_from_image(
-        self, image_path: str, prompt: str, aspect_ratio: str = "16:9"
+        self,
+        image_path: str,
+        prompt: str,
+        aspect_ratio: str = "16:9",
+        fps: int = VIDEO_FPS,
+        resolution: str = VIDEO_RESOLUTION,
     ) -> Optional[Dict]:
         """Mock video generation from image"""
         print(f"🔧 [MOCK] Generating video from image...")
         print(f"🔧 [MOCK] Image path: {image_path}")
         print(f"🔧 [MOCK] Prompt: {prompt}")
         print(f"🔧 [MOCK] Aspect Ratio: {aspect_ratio}")
+        print(f"🔧 [MOCK] FPS: {fps}")
+        print(f"🔧 [MOCK] Resolution: {resolution}")
 
         # Simulate processing time
         time.sleep(1)
@@ -250,13 +257,15 @@ class MockKlingImageToVideoGenerator:
             "image_url": image_url,
             "prompt": prompt,
             "aspect_ratio": aspect_ratio,
+            "fps": fps,
+            "resolution": resolution,
             "duration": "5s",
             "fal_result": {
                 "video": {
                     "url": mock_video_url,
                     "duration": VIDEO_DURATION,
-                    "fps": VIDEO_FPS,
-                    "resolution": VIDEO_RESOLUTION,
+                    "fps": fps,
+                    "resolution": resolution,
                 },
                 "status": "completed",
                 "model_endpoint": self.model_endpoint,
