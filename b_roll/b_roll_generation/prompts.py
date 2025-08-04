@@ -8,6 +8,12 @@ This module contains all prompts used in the b-roll generation process:
 - Negative prompts for image/video generation
 """
 
+import sys
+from pathlib import Path
+
+sys.path.append(str(Path(__file__).parent.parent))
+from constants import DEFAULT_CFG_SCALE, VIDEO_DURATION
+
 # System prompts for AI analysis
 SYSTEM_PROMPT_ANALYSIS = """You are an expert video content analyst and cinematic director. Your task is to analyze a Russian audio transcript and identify the most important story themes for b-roll video generation.
 
@@ -36,6 +42,8 @@ Return your analysis in this exact JSON format:
 
 Guidelines:
 - Each segment should be exactly 5 seconds long
+- start_time and end_time must correspond to actual timestamps from the transcript
+- The start_time should match the beginning of the selected text segment from the transcript timing
 - Importance score: 1-3 (low), 4-6 (medium), 7-10 (high)
 - Image prompts should be detailed and specific for AI image generation
 - Image prompts should focus on characters, people, and visual scenes without any text, letters, or written content
@@ -60,7 +68,10 @@ Maximum segments to select: {max_segments}
 
 Identify the most important story themes and create detailed prompts for both image and video generation. Focus on themes that would benefit most from visual support.
 
-IMPORTANT: For image prompts, avoid any text, letters, signs, or written content. Focus on visual scenes, people, objects, and environments without any textual elements.
+IMPORTANT: 
+- For image prompts, avoid any text, letters, signs, or written content. Focus on visual scenes, people, objects, and environments without any textual elements.
+- The start_time must correspond to the actual timing from the transcript where the selected theme begins.
+- Use precise timestamps that align with the transcript timing structure.
 
 Return only the JSON response with segments sorted by importance_score (highest first).
 """
@@ -72,5 +83,7 @@ NEGATIVE_PROMPT_IMAGE = "blur, low quality, distorted, ugly, watermark, text, wo
 NEGATIVE_PROMPT_VIDEO = "blur, distort, low quality, static image, static scene, no movement, still frame"
 
 # Default generation parameters
-DEFAULT_VIDEO_DURATION = "5"
-DEFAULT_CFG_SCALE = 0.7
+DEFAULT_VIDEO_DURATION = str(
+    int(VIDEO_DURATION)
+)  # Use VIDEO_DURATION from constants.py, convert to integer string
+# DEFAULT_CFG_SCALE moved to constants.py

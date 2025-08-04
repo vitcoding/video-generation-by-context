@@ -25,6 +25,7 @@ from constants import (
     DEFAULT_SEED,
     DEFAULT_VIDEOS_OUTPUT_DIR,
     ENABLE_VIDEO_GENERATION,
+    IMAGE_ASPECT_RATIO,
     VIDEO_DURATION,
     VIDEO_FPS,
     VIDEO_RESOLUTION,
@@ -162,7 +163,7 @@ class UnifiedWorkflow:
                 # Generate image from prompt
                 image_result = self.image_generator.generate_image(
                     prompt=segment["image_prompt"],
-                    aspect_ratio="16:9",  # Standard video aspect ratio
+                    aspect_ratio=IMAGE_ASPECT_RATIO,  # Use aspect ratio from constants
                     seed=DEFAULT_SEED + i,  # Different seed for each segment
                 )
 
@@ -232,7 +233,7 @@ class UnifiedWorkflow:
                 video_result = self.video_generator.generate_video_from_image(
                     image_path=str(image_path),
                     prompt=video_prompt,
-                    aspect_ratio="16:9",
+                    aspect_ratio=IMAGE_ASPECT_RATIO,
                 )
 
                 if video_result:

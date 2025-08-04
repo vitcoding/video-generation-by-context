@@ -23,6 +23,8 @@ import mock_api
 from config import config
 from constants import (
     DEFAULT_VIDEOS_OUTPUT_DIR,
+    IMAGE_ASPECT_RATIO,
+    KLING_MODEL_ENDPOINT,
     VIDEO_DURATION,
     VIDEO_FPS,
     VIDEO_RESOLUTION,
@@ -76,7 +78,7 @@ class KlingImageToVideoGenerator:
             logger.info("🔧 [MOCK] Using mock fal_client")
 
         # API endpoint for Kling 1.6 Pro Image-to-Video
-        self.model_endpoint = "fal-ai/kling-video/v1.6/pro/image-to-video"
+        self.model_endpoint = KLING_MODEL_ENDPOINT
 
         # Output directory
         self.output_dir = Path(DEFAULT_VIDEOS_OUTPUT_DIR)
@@ -158,7 +160,10 @@ class KlingImageToVideoGenerator:
             raise
 
     def generate_video_from_image(
-        self, image_path: str, prompt: str, aspect_ratio: str = "16:9"
+        self,
+        image_path: str,
+        prompt: str,
+        aspect_ratio: str = IMAGE_ASPECT_RATIO,
     ) -> Optional[Dict]:
         """
         Generate video from image using Kling 1.6 Pro
@@ -219,7 +224,7 @@ class KlingImageToVideoGenerator:
         self,
         prompts_data: Dict,
         images_dir: str = None,
-        aspect_ratio: str = "16:9",
+        aspect_ratio: str = IMAGE_ASPECT_RATIO,
     ) -> List[Dict]:
         # Use default images directory if not specified
         if images_dir is None:
@@ -240,7 +245,7 @@ class KlingImageToVideoGenerator:
         Args:
             prompts_data: Dictionary with b-roll prompts data
             images_dir: Directory containing generated images
-            aspect_ratio: Video aspect ratio (default: "16:9")
+            aspect_ratio: Video aspect ratio (default: IMAGE_ASPECT_RATIO)
 
         Returns:
             List of dictionaries with generation results
@@ -270,9 +275,9 @@ class KlingImageToVideoGenerator:
             # Generate image filename based on segment info
             segment_id = segment.get("segment_id", i)
             start_time = segment.get("start_time", 0)
-            image_filename = (
-                f"broll_segment_{segment_id:02d}_{start_time:.1f}s_16x9.png"
-            )
+            # Convert IMAGE_ASPECT_RATIO to filename format
+            aspect_ratio_filename = IMAGE_ASPECT_RATIO.replace(":", "x")
+            image_filename = f"broll_segment_{segment_id:02d}_{start_time:.1f}s_{aspect_ratio_filename}.png"
             image_path = os.path.join(images_dir, image_filename)
 
             # Check if image exists
@@ -281,7 +286,7 @@ class KlingImageToVideoGenerator:
                 continue
 
             # Generate video filename
-            video_filename = f"broll_segment_{segment_id:02d}_{start_time:.1f}s_{aspect_ratio.replace(':', 'x')}.mp4"
+            video_filename = f"broll_segment_{segment_id:02d}_{start_time:.1f}s_{aspect_ratio_filename}.mp4"
 
             # Generate video
             video_result = self.generate_video_from_image(
@@ -414,7 +419,7 @@ def test_kling_image_to_video():
 
         # Generate videos for all segments
         results = generator.generate_videos_for_broll_segments(
-            prompts_data, aspect_ratio="16:9"
+            prompts_data, aspect_ratio=IMAGE_ASPECT_RATIO
         )
 
         # Summary
@@ -456,7 +461,7 @@ def test_kling_image_to_video():
 def generate_broll_videos(
     prompts_file: str = None,
     images_dir: str = None,
-    aspect_ratio: str = "16:9",
+    aspect_ratio: str = IMAGE_ASPECT_RATIO,
 ) -> bool:
     # Use default paths if not specified
     if prompts_file is None:
@@ -489,7 +494,7 @@ def generate_broll_videos(
     Args:
         prompts_file: Path to the prompts JSON file
         images_dir: Directory containing generated images
-        aspect_ratio: Video aspect ratio (default: "16:9")
+        aspect_ratio: Video aspect ratio (default: IMAGE_ASPECT_RATIO)
 
     Returns:
         True if generation successful, False otherwise

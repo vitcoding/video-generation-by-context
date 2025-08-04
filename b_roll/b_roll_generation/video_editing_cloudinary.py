@@ -171,8 +171,8 @@ def process_video_with_broll(
                 "resource_type": "video",
                 "public_id": broll_video_public_id,
             },
-            "width": 1.0,  # Scale to 100% of the underlying video's width
-            "crop": "scale",
+            "width": "1.0",
+            "crop": "fit",
             "gravity": "north",  # Position the B-roll at the top
             "start_offset": start_time,
             "end_offset": end_time,

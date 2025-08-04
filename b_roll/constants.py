@@ -3,29 +3,22 @@
 Constants for video generation project
 """
 
-# Image generation constants
-# VIDEO_RESOLUTION = "1920x1080"  # Full HD resolution for video generation
-VIDEO_RESOLUTION = "1280x720"  # HD resolution
-# VIDEO_RESOLUTION = "854x480"    # SD resolution
-# VIDEO_RESOLUTION = "3840x2160"  # 4K resolution
-# IMAGE_RESOLUTION = "1024x1024"  # Default resolution for image generation
-# IMAGE_RESOLUTION = "2048x2048"  # High resolution for quality
-# IMAGE_RESOLUTION = "512x512"    # Low resolution for testing
-# IMAGE_RESOLUTION = "1536x1536"  # Medium-high resolution
-
 # Video generation constants
+# VIDEO_RESOLUTION = "1080x1920"
+VIDEO_RESOLUTION = "720x1280"
 # VIDEO_RESOLUTION = "1920x1080"  # Full HD resolution for video generation
-VIDEO_RESOLUTION = "1280x720"  # HD resolution
+# VIDEO_RESOLUTION = "1280x720"  # HD resolution
 # VIDEO_RESOLUTION = "854x480"    # SD resolution
 # VIDEO_RESOLUTION = "3840x2160"  # 4K resolution
 
 # Model endpoints
 FAL_MODEL_ENDPOINT = "fal-ai/imagen4/preview/fast"
+KLING_MODEL_ENDPOINT = "fal-ai/kling-video/v1.6/pro/image-to-video"
 
 # Image aspect ratios
-IMAGE_ASPECT_RATIO = "16:9"  # Default aspect ratio for video content
+# IMAGE_ASPECT_RATIO = "16:9"  # Default aspect ratio for video content
 # IMAGE_ASPECT_RATIO = "1:1"   # Square format, good for social media
-# IMAGE_ASPECT_RATIO = "9:16"  # Vertical format, good for mobile/vertical video
+IMAGE_ASPECT_RATIO = "9:16"  # Vertical format, good for mobile/vertical video
 # IMAGE_ASPECT_RATIO = "4:3"   # Traditional format
 # IMAGE_ASPECT_RATIO = "3:2"   # Photography standard
 # IMAGE_ASPECT_RATIO = "21:9"  # Ultra-wide format
@@ -34,6 +27,7 @@ IMAGE_ASPECT_RATIO = "16:9"  # Default aspect ratio for video content
 VIDEO_FPS = 24  # Frames per second for video generation
 # VIDEO_FPS = 30  # Frames per second for video generation
 VIDEO_DURATION = 5.0  # Default video duration in seconds
+DEFAULT_CFG_SCALE = 0.7  # Default CFG scale for video generation
 
 # File paths - dynamically set based on mock mode
 import sys
