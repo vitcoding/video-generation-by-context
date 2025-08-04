@@ -12,10 +12,12 @@ from . import prompts
 from .broll_image_generation import ImageGenerator
 from .broll_prompts import BRollAnalyzer
 from .kling_image_to_video import KlingImageToVideoGenerator
+from .video_editing_cloudinary import process_video_with_broll
 
 __all__ = [
     "BRollAnalyzer",
     "ImageGenerator",
     "KlingImageToVideoGenerator",
     "prompts",
+    "process_video_with_broll",
 ]
