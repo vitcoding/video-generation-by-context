@@ -44,6 +44,7 @@ Guidelines:
 - Each segment should be exactly 5 seconds long
 - start_time and end_time must correspond to actual timestamps from the transcript
 - The start_time should match the beginning of the selected text segment from the transcript timing
+- Do not select themes from the first 10 seconds of the transcript - start_time must be >= 10.0 seconds
 - Importance score: 1-3 (low), 4-6 (medium), 7-10 (high)
 - Image prompts should be detailed and specific for AI image generation
 - Image prompts should focus on characters, people, and visual scenes without any text, letters, or written content
@@ -71,6 +72,7 @@ Identify the most important story themes and create detailed prompts for both im
 IMPORTANT: 
 - For image prompts, avoid any text, letters, signs, or written content. Focus on visual scenes, people, objects, and environments without any textual elements.
 - The start_time must correspond to the actual timing from the transcript where the selected theme begins.
+- Do not select themes from the first 10 seconds of the transcript - start_time must be >= 10.0 seconds.
 - Use precise timestamps that align with the transcript timing structure.
 
 Return only the JSON response with segments sorted by importance_score (highest first).
