@@ -271,7 +271,9 @@ class UnifiedWorkflow:
 
                 if image_result:
                     # Download image with descriptive filename
-                    filename = f"segment_{i:02d}_{segment['start_time']:.1f}s_{segment['end_time']:.1f}s.png"
+                    # Use segment_id from data instead of loop index for consistency
+                    segment_id = segment.get("segment_id", i)
+                    filename = f"segment_{segment_id:02d}_{segment['start_time']:.1f}s_{segment['end_time']:.1f}s.png"
                     download_success = self.image_generator.download_image(
                         image_result["image_url"], filename
                     )

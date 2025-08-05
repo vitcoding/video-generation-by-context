@@ -218,9 +218,8 @@ def process_video_with_broll(
             end_time = segment["end_time"]
 
             # Build B-roll video path using naming convention
-            broll_filename = (
-                f"segment_{segment_id:02d}_{start_time}s_{end_time}s_video.mp4"
-            )
+            # Use .1f format to match workflow.py naming (rounded to 1 decimal place)
+            broll_filename = f"segment_{segment_id:02d}_{start_time:.1f}s_{end_time:.1f}s_video.mp4"
             broll_video_path = broll_videos_dir / broll_filename
 
             if not broll_video_path.exists():
