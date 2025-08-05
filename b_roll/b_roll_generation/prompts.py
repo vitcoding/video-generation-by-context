@@ -41,10 +41,11 @@ Return your analysis in this exact JSON format:
 }
 
 ⚠️ CRITICALLY IMPORTANT - START TIME REQUIREMENTS:
+- ONLY select themes that begin AFTER 10.0 seconds in the transcript
 - start_time must EXACTLY match the real timestamp from the transcript where the theme begins
 - start_time must be set to the EXACT second when the selected text segment begins in the transcript
 - DO NOT round or approximate start_time - use PRECISE values from the transcript timestamps
-- DO NOT select themes from the first 10 seconds of the transcript - start_time must be >= 10.0 seconds
+- Find segments that naturally start >= 10.0 seconds and use their EXACT start timestamps
 - Start timestamp must strictly correspond to the transcript timing structure
 
 Guidelines:
@@ -74,11 +75,12 @@ Maximum segments to select: {max_segments}
 Identify the most important story themes and create detailed prompts for both image and video generation. Focus on themes that would benefit most from visual support.
 
 🔴 CRITICALLY IMPORTANT - EXACT START TIME MATCHING:
+- ONLY analyze and select themes that begin AFTER 10.0 seconds in the transcript
 - start_time must EXACTLY match the timestamp from the transcript where the selected theme begins
 - DO NOT use approximate or rounded start_time values
-- Find the EXACT timestamp in the transcript where the relevant text segment starts
-- start_time must be >= 10.0 seconds (do not select themes from the first 10 seconds)
+- Find segments that naturally start >= 10.0 seconds and use their EXACT start timestamps from the transcript
 - Start timestamp must strictly correspond to the timing structure in the provided transcript
+- If a theme starts before 10.0 seconds, skip it entirely and find other themes that start later
 
 ADDITIONAL REQUIREMENTS: 
 - For image prompts, avoid any text, letters, signs, or written content. Focus on visual scenes, people, objects, and environments without any textual elements.
