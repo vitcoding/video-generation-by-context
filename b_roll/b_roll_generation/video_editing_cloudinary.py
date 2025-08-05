@@ -11,9 +11,15 @@ from dotenv import load_dotenv
 sys.path.append(str(Path(__file__).parent.parent))
 from config import config
 from constants import (
+    BROLL_PROMPTS_DIR_NAME,
+    DEFAULT_VIDEO_FILENAME,
     DEFAULT_VIDEOS_OUTPUT_DIR,
+    INPUT_VIDEO_DIR_NAME,
     VIDEO_FPS,
+    VIDEO_GENERATION_DIR_NAME,
+    VIDEO_OUTPUT_DIR_NAME,
     VIDEO_RESOLUTION,
+    WORKFLOW_PROMPTS_FILENAME,
     base_data_dir,
 )
 from logger_config import logger
@@ -125,11 +131,11 @@ def process_video_with_broll(
     logger.info("Cloudinary configured successfully")
 
     # Step 2: Set paths using constants
-    workflow_json_path = f"b_roll/{base_data_dir}/video_generation/broll_prompts/workflow_generated_prompts.json"
+    workflow_json_path = f"b_roll/{base_data_dir}/{VIDEO_GENERATION_DIR_NAME}/{BROLL_PROMPTS_DIR_NAME}/{WORKFLOW_PROMPTS_FILENAME}"
     broll_videos_dir = Path(DEFAULT_VIDEOS_OUTPUT_DIR)
 
     if output_folder is None:
-        output_folder = f"b_roll/{base_data_dir}/video_generation/video_output"
+        output_folder = f"b_roll/{base_data_dir}/{VIDEO_GENERATION_DIR_NAME}/{VIDEO_OUTPUT_DIR_NAME}"
 
     # Step 3: Validate input files
     if not os.path.exists(heygen_video_path):
@@ -346,7 +352,7 @@ def process_video_with_broll(
 
 if __name__ == "__main__":
     # Example usage with new interface
-    HEYGEN_VIDEO_PATH = "b_roll/data/video_generation/input_video/video.mp4"
+    HEYGEN_VIDEO_PATH = f"b_roll/data/{VIDEO_GENERATION_DIR_NAME}/{INPUT_VIDEO_DIR_NAME}/{DEFAULT_VIDEO_FILENAME}"
 
     try:
         # Process all segments

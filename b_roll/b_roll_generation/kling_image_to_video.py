@@ -22,12 +22,17 @@ sys.path.append(str(Path(__file__).parent.parent))
 import mock_api
 from config import config
 from constants import (
+    API_PROMPTS_FILENAME,
+    BROLL_PROMPTS_DIR_NAME,
     DEFAULT_VIDEOS_OUTPUT_DIR,
     IMAGE_ASPECT_RATIO,
+    IMAGES_INPUT_DIR_NAME,
     KLING_MODEL_ENDPOINT,
     VIDEO_DURATION,
     VIDEO_FPS,
+    VIDEO_GENERATION_DIR_NAME,
     VIDEO_RESOLUTION,
+    base_data_dir,
 )
 from mock_api import mock_fal_client, mock_requests
 
@@ -99,7 +104,7 @@ class KlingImageToVideoGenerator:
             base_data_dir = "data_mock" if config.is_mock_enabled else "data"
             prompts_file = str(
                 Path(__file__).parent.parent
-                / f"{base_data_dir}/video_generation/broll_prompts_api_generated.json"
+                / f"{base_data_dir}/{VIDEO_GENERATION_DIR_NAME}/{API_PROMPTS_FILENAME}"
             )
         """
         Load b-roll prompts from JSON file
@@ -247,7 +252,7 @@ class KlingImageToVideoGenerator:
             base_data_dir = "data_mock" if config.is_mock_enabled else "data"
             images_dir = str(
                 Path(__file__).parent.parent
-                / f"{base_data_dir}/video_generation/images_input"
+                / f"{base_data_dir}/{VIDEO_GENERATION_DIR_NAME}/{IMAGES_INPUT_DIR_NAME}"
             )
         """
         Generate videos for all b-roll segments
@@ -486,7 +491,7 @@ def generate_broll_videos(
         base_data_dir = "data_mock" if config.is_mock_enabled else "data"
         prompts_file = str(
             Path(__file__).parent.parent
-            / f"{base_data_dir}/video_generation/broll_prompts_api_generated.json"
+            / f"{base_data_dir}/{VIDEO_GENERATION_DIR_NAME}/{API_PROMPTS_FILENAME}"
         )
     if images_dir is None:
         # Use data_mock when mock mode is enabled
@@ -498,7 +503,7 @@ def generate_broll_videos(
         base_data_dir = "data_mock" if config.is_mock_enabled else "data"
         images_dir = str(
             Path(__file__).parent.parent
-            / f"{base_data_dir}/video_generation/images_input"
+            / f"{base_data_dir}/{VIDEO_GENERATION_DIR_NAME}/{IMAGES_INPUT_DIR_NAME}"
         )
     """
     Generate videos for all b-roll segments from prompts file

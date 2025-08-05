@@ -54,15 +54,30 @@ from b_roll_generation import (
 )
 from config import config
 from constants import (
+    AUDIO_TRANSCRIPT_DIR,
+    AUDIO_TRANSCRIPT_DIR_NAME,
+    BASE_DATA_DIR_PATH,
+    BASE_RELATIVE_PATH,
+    BROLL_PROMPTS_DIR,
+    BROLL_PROMPTS_DIR_NAME,
     DEFAULT_IMAGES_OUTPUT_DIR,
     DEFAULT_SEED,
+    DEFAULT_VIDEO_PATH,
     DEFAULT_VIDEOS_OUTPUT_DIR,
     ENABLE_VIDEO_GENERATION,
     IMAGE_ASPECT_RATIO,
+    INPUT_VIDEO_DIR,
+    INPUT_VIDEO_DIR_NAME,
     MAX_SEGMENTS,
+    TRANSCRIPTION_JSON_FILENAME,
+    TRANSCRIPTION_JSON_PATH,
     VIDEO_DURATION,
     VIDEO_FPS,
+    VIDEO_OUTPUT_DIR,
+    VIDEO_OUTPUT_DIR_NAME,
     VIDEO_RESOLUTION,
+    WORKFLOW_PROMPTS_FILENAME,
+    WORKFLOW_REPORT_FILENAME,
 )
 from logger_config import logger
 
@@ -123,17 +138,12 @@ class UnifiedWorkflow:
                 "start_stage must be 'transcription' or 'analysis'"
             )
 
-        # Workflow directories
-        # Use data_mock directory when mock mode is enabled
-        base_data_dir = "data_mock" if config.is_mock_enabled else "data"
-        self.data_dir = (
-            Path(__file__).parent / f"{base_data_dir}/video_generation"
-        )
-        self.transcript_dir = self.data_dir / "audio_transcript"
-        self.prompts_dir = self.data_dir / "broll_prompts"
-        self.input_video_dir = self.data_dir / "input_video"
-        self.final_video_dir = self.data_dir / "video_output"
-        # Fix path construction to avoid duplication
+        # Workflow directories using constants
+        self.data_dir = Path(__file__).parent / BASE_RELATIVE_PATH
+        self.transcript_dir = Path(AUDIO_TRANSCRIPT_DIR)
+        self.prompts_dir = Path(BROLL_PROMPTS_DIR)
+        self.input_video_dir = Path(INPUT_VIDEO_DIR)
+        self.final_video_dir = Path(VIDEO_OUTPUT_DIR)
         self.images_dir = Path(DEFAULT_IMAGES_OUTPUT_DIR)
         self.videos_dir = Path(DEFAULT_VIDEOS_OUTPUT_DIR)
 
@@ -163,9 +173,7 @@ class UnifiedWorkflow:
 
         try:
             # Set output path for transcript
-            transcript_file = (
-                self.transcript_dir / "transcription_verbose_to_json.json"
-            )
+            transcript_file = self.transcript_dir / TRANSCRIPTION_JSON_FILENAME
 
             # Transcribe video
             result_path = self.video_transcriber.transcribe_video_to_json(
@@ -218,7 +226,7 @@ class UnifiedWorkflow:
             )
 
             # Save prompts
-            prompts_file = self.prompts_dir / "workflow_generated_prompts.json"
+            prompts_file = self.prompts_dir / WORKFLOW_PROMPTS_FILENAME
             with open(prompts_file, "w", encoding="utf-8") as f:
                 json.dump(output_data, f, ensure_ascii=False, indent=2)
 
@@ -427,7 +435,7 @@ class UnifiedWorkflow:
         elif self.start_stage == "analysis" and not transcript_file_path:
             # Use default transcript file path if not provided
             default_transcript_file = (
-                self.transcript_dir / "transcription_verbose_to_json.json"
+                self.transcript_dir / TRANSCRIPTION_JSON_FILENAME
             )
             if default_transcript_file.exists():
                 transcript_file_path = str(default_transcript_file)
@@ -558,7 +566,7 @@ class UnifiedWorkflow:
             }
 
             # Save complete workflow report
-            report_file = self.data_dir / "workflow_complete_report.json"
+            report_file = self.data_dir / WORKFLOW_REPORT_FILENAME
             # Convert all Path objects to strings for JSON serialization
             serializable_results = convert_paths_to_strings(workflow_results)
             with open(report_file, "w", encoding="utf-8") as f:
@@ -596,7 +604,7 @@ class UnifiedWorkflow:
 
         Args:
             transcript_file_path: Path to existing transcript file.
-                                If None, uses default path: transcript_dir/transcription_verbose_to_json.json
+                                If None, uses default path: {AUDIO_TRANSCRIPT_DIR_NAME}/{TRANSCRIPTION_JSON_FILENAME}
 
         Returns:
             Dictionary with workflow results (excluding transcription)
@@ -702,9 +710,7 @@ class UnifiedWorkflow:
         else:
             logger.info(f"   • Videos: [SKIPPED]")
 
-        logger.info(
-            f"   • Report: {self.data_dir}/workflow_complete_report.json"
-        )
+        logger.info(f"   • Report: {self.data_dir}/{WORKFLOW_REPORT_FILENAME}")
 
         # Final status messages
         video_gen_enabled = (
@@ -756,18 +762,16 @@ def main():
     workflow = UnifiedWorkflow(skip_video_generation=True)
     results = workflow.run_from_video("path/to/video.mp4")
     """
-    # Default video file path - use data_mock when mock mode is enabled
-    base_data_dir = "data_mock" if config.is_mock_enabled else "data"
+    # Default video file path using constants
     DEFAULT_VIDEO_FILE = (
-        Path(__file__).parent
-        / f"{base_data_dir}/video_generation/input_video/video.mp4"
-    )
+        Path(__file__).parent / DEFAULT_VIDEO_PATH[2:]
+    )  # Remove "./" prefix
 
     # Check if video file exists
     if not DEFAULT_VIDEO_FILE.exists():
         logger.info(f"❌ Video file not found: {DEFAULT_VIDEO_FILE}")
         logger.info(
-            "Please ensure you have a valid video file in the input_video directory."
+            f"Please ensure you have a valid video file in the {INPUT_VIDEO_DIR_NAME} directory."
         )
 
         # Create the directory if it doesn't exist

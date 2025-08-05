@@ -29,24 +29,6 @@ VIDEO_FPS = 24  # Frames per second for video generation
 VIDEO_DURATION = 5.0  # Default video duration in seconds
 DEFAULT_CFG_SCALE = 0.7  # Default CFG scale for video generation
 
-# File paths - dynamically set based on mock mode
-import sys
-from pathlib import Path
-
-sys.path.append(str(Path(__file__).parent))
-from config import config
-
-# Use data_mock directory when mock mode is enabled
-base_data_dir = "data_mock" if config.is_mock_enabled else "data"
-
-DEFAULT_PROMPTS_FILE = f"./b_roll/{base_data_dir}/video_generation/broll_prompts_api_generated.json"
-DEFAULT_IMAGES_OUTPUT_DIR = (
-    f"./b_roll/{base_data_dir}/video_generation/images_input"
-)
-DEFAULT_VIDEOS_OUTPUT_DIR = (
-    f"./b_roll/{base_data_dir}/video_generation/videos_output"
-)
-
 # API configuration
 DEFAULT_SEED = 42  # Default random seed for reproducible results
 DEFAULT_NUM_INFERENCE_STEPS = (
@@ -83,3 +65,67 @@ CONTENT_REPLACEMENTS = {
     "role of AI": "role of intelligent systems",
     " AI ": " intelligent system ",
 }
+
+# File paths - dynamically set based on mock mode
+import sys
+from pathlib import Path
+
+sys.path.append(str(Path(__file__).parent))
+from config import config
+
+# Use data_mock directory when mock mode is enabled
+base_data_dir = "data_mock" if config.is_mock_enabled else "data"
+
+# Directory structure constants
+B_ROLL_MODULE_NAME = "b_roll"
+VIDEO_GENERATION_DIR_NAME = "video_generation"
+AUDIO_TRANSCRIPT_DIR_NAME = "audio_transcript"
+BROLL_PROMPTS_DIR_NAME = "broll_prompts"
+INPUT_VIDEO_DIR_NAME = "input_video"
+VIDEO_OUTPUT_DIR_NAME = "video_output"
+IMAGES_INPUT_DIR_NAME = "images_input"
+VIDEOS_OUTPUT_DIR_NAME = "videos_output"
+
+# Base directory paths
+BASE_DATA_DIR_PATH = (
+    f"./{B_ROLL_MODULE_NAME}/{base_data_dir}/{VIDEO_GENERATION_DIR_NAME}"
+)
+BASE_RELATIVE_PATH = (
+    f"{B_ROLL_MODULE_NAME}/{base_data_dir}/{VIDEO_GENERATION_DIR_NAME}"
+)
+
+# Main directory paths
+AUDIO_TRANSCRIPT_DIR = f"{BASE_DATA_DIR_PATH}/{AUDIO_TRANSCRIPT_DIR_NAME}"
+BROLL_PROMPTS_DIR = f"{BASE_DATA_DIR_PATH}/{BROLL_PROMPTS_DIR_NAME}"
+INPUT_VIDEO_DIR = f"{BASE_DATA_DIR_PATH}/{INPUT_VIDEO_DIR_NAME}"
+VIDEO_OUTPUT_DIR = f"{BASE_DATA_DIR_PATH}/{VIDEO_OUTPUT_DIR_NAME}"
+IMAGES_INPUT_DIR = f"{BASE_DATA_DIR_PATH}/{IMAGES_INPUT_DIR_NAME}"
+VIDEOS_OUTPUT_DIR_PATH = f"{BASE_DATA_DIR_PATH}/{VIDEOS_OUTPUT_DIR_NAME}"
+
+# Existing paths for backward compatibility
+DEFAULT_IMAGES_OUTPUT_DIR = IMAGES_INPUT_DIR
+DEFAULT_VIDEOS_OUTPUT_DIR = VIDEOS_OUTPUT_DIR_PATH
+DEFAULT_PROMPTS_FILE = (
+    f"{BASE_DATA_DIR_PATH}/{BROLL_PROMPTS_DIR_NAME}_api_generated.json"
+)
+
+# Standard file names
+TRANSCRIPTION_JSON_FILENAME = "transcription_verbose_to_json.json"
+WORKFLOW_PROMPTS_FILENAME = "workflow_generated_prompts.json"
+API_PROMPTS_FILENAME = "broll_prompts_api_generated.json"
+WORKFLOW_REPORT_FILENAME = "workflow_complete_report.json"
+DEFAULT_VIDEO_FILENAME = "video.mp4"
+ENV_FILENAME = ".env"
+
+# Full file paths
+TRANSCRIPTION_JSON_PATH = (
+    f"{AUDIO_TRANSCRIPT_DIR}/{TRANSCRIPTION_JSON_FILENAME}"
+)
+WORKFLOW_PROMPTS_PATH = f"{BROLL_PROMPTS_DIR}/{WORKFLOW_PROMPTS_FILENAME}"
+API_PROMPTS_PATH = f"{BROLL_PROMPTS_DIR}/{API_PROMPTS_FILENAME}"
+WORKFLOW_REPORT_PATH = f"{BASE_DATA_DIR_PATH}/{WORKFLOW_REPORT_FILENAME}"
+DEFAULT_VIDEO_PATH = f"{INPUT_VIDEO_DIR}/{DEFAULT_VIDEO_FILENAME}"
+
+# Environment and configuration paths
+PROJECT_ROOT_RELATIVE_PATH = ".."  # Relative to b_roll_generation modules
+ENV_FILE_PATH = f"{PROJECT_ROOT_RELATIVE_PATH}/{ENV_FILENAME}"

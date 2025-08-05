@@ -19,10 +19,14 @@ from typing import Any, Dict, List, Optional, Tuple
 sys.path.append(str(Path(__file__).parent.parent))
 from config import config
 from constants import (
+    AUDIO_TRANSCRIPT_DIR_NAME,
     DEFAULT_PROMPTS_FILE,
+    TRANSCRIPTION_JSON_FILENAME,
     VIDEO_DURATION,
     VIDEO_FPS,
+    VIDEO_GENERATION_DIR_NAME,
     VIDEO_RESOLUTION,
+    base_data_dir,
 )
 from logger_config import logger
 from mock_api import mock_openai_client
@@ -265,7 +269,7 @@ def main():
 
     INPUT_FILE = str(
         Path(__file__).parent.parent
-        / f"{base_data_dir}/video_generation/audio_transcript/transcription_verbose_to_json.json"
+        / f"{base_data_dir}/{VIDEO_GENERATION_DIR_NAME}/{AUDIO_TRANSCRIPT_DIR_NAME}/{TRANSCRIPTION_JSON_FILENAME}"
     )
     OUTPUT_FILE = str(Path(__file__).parent.parent / DEFAULT_PROMPTS_FILE)
 

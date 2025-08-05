@@ -16,7 +16,15 @@ from dotenv import load_dotenv
 sys.path.append(str(Path(__file__).parent.parent))
 import mock_api
 from config import config
-from constants import base_data_dir
+from constants import (
+    AUDIO_TRANSCRIPT_DIR_NAME,
+    BASE_RELATIVE_PATH,
+    DEFAULT_VIDEO_FILENAME,
+    INPUT_VIDEO_DIR_NAME,
+    TRANSCRIPTION_JSON_FILENAME,
+    VIDEO_GENERATION_DIR_NAME,
+    base_data_dir,
+)
 from logger_config import logger
 from mock_api import mock_openai_client
 
@@ -79,7 +87,7 @@ class VideoTranscriber:
         """
         # Step 1: Set paths using constants
         if output_json_path is None:
-            output_json_path = f"b_roll/{base_data_dir}/video_generation/audio_transcript/transcription_verbose_to_json.json"
+            output_json_path = f"b_roll/{base_data_dir}/{VIDEO_GENERATION_DIR_NAME}/{AUDIO_TRANSCRIPT_DIR_NAME}/{TRANSCRIPTION_JSON_FILENAME}"
 
         # Step 2: Validate input file
         if not os.path.exists(video_file_path):
@@ -271,9 +279,7 @@ def transcribe_video_to_json(
 
 if __name__ == "__main__":
     # Example usage
-    VIDEO_FILE_PATH = (
-        f"b_roll/{base_data_dir}/video_generation/input_video/video.mp4"
-    )
+    VIDEO_FILE_PATH = f"b_roll/{base_data_dir}/{VIDEO_GENERATION_DIR_NAME}/{INPUT_VIDEO_DIR_NAME}/{DEFAULT_VIDEO_FILENAME}"
 
     try:
         # Transcribe video with word-level timestamps
