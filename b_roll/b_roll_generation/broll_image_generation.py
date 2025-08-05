@@ -25,8 +25,10 @@ from constants import (
     DEFAULT_NUM_INFERENCE_STEPS,
     DEFAULT_PROMPTS_FILE,
     DEFAULT_SEED,
+    ENV_FILENAME,
     FAL_MODEL_ENDPOINT,
     IMAGE_ASPECT_RATIO,
+    PROJECT_ROOT_RELATIVE_PATH,
 )
 from logger_config import logger
 from mock_api import mock_fal_client, mock_requests
@@ -57,7 +59,7 @@ class ImageGenerator:
         """
         # Load environment variables from .env file in project root
         project_root = Path(__file__).parent.parent
-        env_file = project_root / ".env"
+        env_file = project_root / ENV_FILENAME
         load_dotenv(env_file)
 
         # Get API key based on configuration

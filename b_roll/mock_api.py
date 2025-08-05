@@ -227,13 +227,20 @@ class MockKlingImageToVideoGenerator:
         return mock_image_url
 
     def generate_video_from_image(
-        self, image_path: str, prompt: str, aspect_ratio: str = "16:9"
+        self,
+        image_path: str,
+        prompt: str,
+        aspect_ratio: str = "16:9",
+        fps: int = VIDEO_FPS,
+        resolution: str = VIDEO_RESOLUTION,
     ) -> Optional[Dict]:
         """Mock video generation from image"""
         print(f"🔧 [MOCK] Generating video from image...")
         print(f"🔧 [MOCK] Image path: {image_path}")
         print(f"🔧 [MOCK] Prompt: {prompt}")
         print(f"🔧 [MOCK] Aspect Ratio: {aspect_ratio}")
+        print(f"🔧 [MOCK] FPS: {fps}")
+        print(f"🔧 [MOCK] Resolution: {resolution}")
 
         # Simulate processing time
         time.sleep(1)
@@ -250,13 +257,15 @@ class MockKlingImageToVideoGenerator:
             "image_url": image_url,
             "prompt": prompt,
             "aspect_ratio": aspect_ratio,
+            "fps": fps,
+            "resolution": resolution,
             "duration": "5s",
             "fal_result": {
                 "video": {
                     "url": mock_video_url,
                     "duration": VIDEO_DURATION,
-                    "fps": VIDEO_FPS,
-                    "resolution": VIDEO_RESOLUTION,
+                    "fps": fps,
+                    "resolution": resolution,
                 },
                 "status": "completed",
                 "model_endpoint": self.model_endpoint,
@@ -308,9 +317,79 @@ class MockKlingImageToVideoGenerator:
 class MockOpenAI:
     """Mock OpenAI class that can be called as constructor"""
 
-    def __init__(self, api_key: str = "mock_key"):
-        self.api_key = api_key
+    def __init__(self, api_key: Optional[str] = None):
+        self.api_key = api_key or "mock_openai_key"
         self.chat = MockOpenAIClient()
+        self.audio = MockOpenAIAudio()
+
+
+class MockOpenAIAudio:
+    """Mock OpenAI Audio client for transcription"""
+
+    def __init__(self):
+        self.transcriptions = MockOpenAITranscriptions()
+
+
+class MockOpenAITranscriptions:
+    """Mock OpenAI Transcriptions API"""
+
+    def create(
+        self,
+        model: str,
+        file: Any,
+        response_format: str = "json",
+        timestamp_granularities: Optional[List[str]] = None,
+    ) -> Dict:
+        """Mock transcription creation"""
+        print(f"🔧 [MOCK] OpenAI transcription")
+        print(f"🔧 [MOCK] Model: {model}")
+        print(f"🔧 [MOCK] Response format: {response_format}")
+        print(f"🔧 [MOCK] Timestamp granularities: {timestamp_granularities}")
+
+        # Simulate processing time
+        time.sleep(1)
+
+        # Mock transcript data
+        mock_text = "А вы знали, что худшая ошибка тех, кто боится искусственного интеллекта, думать, что он делает нас глупее? Это совершенно не так. Мы стоим на пороге четвертой революции, она многократно превосходит все, что было раньше в истории человечества."
+
+        # Create mock word-level timestamps
+        words = mock_text.split()
+        word_timestamps = []
+        current_time = 0.0
+
+        for word in words:
+            word_duration = (
+                len(word) * 0.1 + 0.1
+            )  # Approximate duration based on word length
+            word_timestamps.append(
+                {
+                    "word": word,
+                    "start": current_time,
+                    "end": current_time + word_duration,
+                }
+            )
+            current_time += word_duration + 0.1  # Add pause between words
+
+        # Create mock response object with attributes
+        class MockTranscriptResponse:
+            def __init__(self):
+                self.text = mock_text
+                self.language = "ru"
+                self.duration = current_time
+                self.words = [
+                    type(
+                        "Word",
+                        (),
+                        {
+                            "word": w["word"],
+                            "start": w["start"],
+                            "end": w["end"],
+                        },
+                    )()
+                    for w in word_timestamps
+                ]
+
+        return MockTranscriptResponse()
 
 
 class MockOpenAIClient:

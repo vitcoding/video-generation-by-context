@@ -8,6 +8,8 @@ It includes modules for transcript analysis, image generation, and video creatio
 __version__ = "1.0.0"
 __author__ = "Video Generation Team"
 
+from b_roll.logger_config import logger
+
 from .b_roll_generation import (
     BRollAnalyzer,
     ImageGenerator,
@@ -25,4 +27,5 @@ __all__ = [
     "ImageGenerator",
     "KlingImageToVideoGenerator",
     "config",
+    "logger",
 ]

@@ -8,8 +8,14 @@ This module contains all prompts used in the b-roll generation process:
 - Negative prompts for image/video generation
 """
 
+import sys
+from pathlib import Path
+
+sys.path.append(str(Path(__file__).parent.parent))
+from constants import DEFAULT_CFG_SCALE, VIDEO_DURATION
+
 # System prompts for AI analysis
-SYSTEM_PROMPT_ANALYSIS = """You are an expert video content analyst and cinematic director. Your task is to analyze a Russian audio transcript and identify the most important story themes for b-roll video generation.
+SYSTEM_PROMPT_ANALYSIS = """You are an expert video content analyst and cinematic director. Your task is to analyze a Russian audio transcript with word-level timestamps and identify the most important story themes for b-roll video generation.
 
 Your analysis should:
 1. Identify distinct story themes in the transcript
@@ -34,6 +40,14 @@ Return your analysis in this exact JSON format:
   ]
 }
 
+⚠️ CRITICALLY IMPORTANT - START TIME REQUIREMENTS:
+- ONLY select themes that begin AFTER 10.0 seconds in the transcript
+- start_time must be EXACTLY taken from the word timestamps provided in the transcript data
+- Find the EXACT timestamp where your selected text segment begins by matching words to their timestamps
+- Use the "start" timestamp of the first word in your selected segment as the start_time
+- DO NOT estimate or approximate - use PRECISE timestamp values from the word-level data
+- Start timestamp must strictly correspond to the word timing data provided
+
 Guidelines:
 - Each segment should be exactly 5 seconds long
 - Importance score: 1-3 (low), 4-6 (medium), 7-10 (high)
@@ -51,16 +65,32 @@ Only return valid JSON, no additional text."""
 
 # User prompt template for transcript analysis
 USER_PROMPT_TEMPLATE = """
-Analyze this Russian audio transcript and create b-roll segments:
+Analyze this Russian audio transcript with word-level timestamps and create b-roll segments:
 
-Transcript text: "{transcript_text}"
+Full transcript text: "{transcript_text}"
+
+Word-level timestamps:
+{word_timestamps}
+
 Total duration: {duration} seconds
 Target segment duration: {segment_duration} seconds
 Maximum segments to select: {max_segments}
 
 Identify the most important story themes and create detailed prompts for both image and video generation. Focus on themes that would benefit most from visual support.
 
-IMPORTANT: For image prompts, avoid any text, letters, signs, or written content. Focus on visual scenes, people, objects, and environments without any textual elements.
+🔴 CRITICALLY IMPORTANT - EXACT START TIME MATCHING:
+- ONLY analyze and select themes that begin AFTER 10.0 seconds in the transcript
+- start_time must be EXACTLY taken from the word timestamps provided above
+- Find the specific words that begin your selected theme and use the "start" timestamp of the first word
+- DO NOT estimate or approximate start_time values - use the exact timestamps from the word data
+- Match your selected text segments to the word timestamps to get precise start_time values
+- If a theme starts before 10.0 seconds, skip it entirely and find other themes that start later
+
+EXAMPLE: If you want to select a segment starting with "Граница между программой", find those exact words in the word timestamps and use the start time of "Граница".
+
+ADDITIONAL REQUIREMENTS: 
+- For image prompts, avoid any text, letters, signs, or written content. Focus on visual scenes, people, objects, and environments without any textual elements.
+- Use precise timestamps that align with the word-level timing data provided.
 
 Return only the JSON response with segments sorted by importance_score (highest first).
 """
@@ -72,5 +102,7 @@ NEGATIVE_PROMPT_IMAGE = "blur, low quality, distorted, ugly, watermark, text, wo
 NEGATIVE_PROMPT_VIDEO = "blur, distort, low quality, static image, static scene, no movement, still frame"
 
 # Default generation parameters
-DEFAULT_VIDEO_DURATION = "5"
-DEFAULT_CFG_SCALE = 0.7
+DEFAULT_VIDEO_DURATION = str(
+    int(VIDEO_DURATION)
+)  # Use VIDEO_DURATION from constants.py, convert to integer string
+# DEFAULT_CFG_SCALE moved to constants.py
