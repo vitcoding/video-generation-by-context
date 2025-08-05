@@ -129,8 +129,14 @@ class BRollAnalyzer:
 
         system_prompt = SYSTEM_PROMPT_ANALYSIS
 
+        # Prepare word timestamps for the prompt
+        word_timestamps = self._format_word_timestamps(
+            transcript_data.get("words", [])
+        )
+
         user_prompt = USER_PROMPT_TEMPLATE.format(
             transcript_text=transcript_data["text"],
+            word_timestamps=word_timestamps,
             duration=transcript_data["duration"],
             segment_duration=self.segment_duration,
             max_segments=self.max_segments,
@@ -146,7 +152,7 @@ class BRollAnalyzer:
                     {"role": "user", "content": user_prompt},
                 ],
                 temperature=0.2,
-                max_tokens=1000,
+                max_tokens=1500,
             )
 
             response_content = response.choices[0].message.content.strip()
@@ -197,6 +203,47 @@ class BRollAnalyzer:
             raise SystemExit(
                 "❌ Failed to analyze transcript with AI. Stopping execution."
             )
+
+    def _format_word_timestamps(self, words: List[Dict]) -> str:
+        """
+        Format word timestamps for inclusion in the AI prompt.
+
+        Args:
+            words: List of word objects with timestamps
+
+        Returns:
+            str: Formatted string with word timestamps
+        """
+        if not words:
+            return "No word-level timestamps available."
+
+        # Format words with timestamps, filtering out very short segments and focusing on content words
+        formatted_words = []
+        for word_data in words:
+            word = word_data.get("word", "")
+            start = word_data.get("start", 0)
+            word_type = word_data.get("type", "word")
+
+            # Include words and important punctuation, skip very short function words for brevity
+            if word_type == "word" or word in [".", "?", "!"]:
+                formatted_words.append(f"{word} ({start:.2f}s)")
+
+        # Group words into lines for better readability
+        lines = []
+        current_line = []
+        words_per_line = 8
+
+        for i, formatted_word in enumerate(formatted_words):
+            current_line.append(formatted_word)
+            if (i + 1) % words_per_line == 0:
+                lines.append(" | ".join(current_line))
+                current_line = []
+
+        # Add remaining words
+        if current_line:
+            lines.append(" | ".join(current_line))
+
+        return "\n".join(lines)
 
     # def _generate_fallback_segments(
     #     self, transcript_data: Dict[str, Any]
