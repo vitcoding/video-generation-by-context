@@ -18,6 +18,8 @@ from b_roll_generation import (
     BRollAnalyzer,
     ImageGenerator,
     KlingImageToVideoGenerator,
+    VideoTranscriber,
+    process_video_with_broll,
 )
 from config import config
 from constants import (
@@ -49,10 +51,12 @@ def convert_paths_to_strings(obj):
 
 class UnifiedWorkflow:
     """
-    Unified workflow for processing audio transcripts through the complete pipeline:
-    1. Analyze transcript and generate b-roll prompts
-    2. Generate images from prompts
-    3. Convert images to videos
+    Unified workflow for processing video through the complete pipeline:
+    1. Transcribe video file to get word-level timestamps
+    2. Analyze transcript and generate b-roll prompts
+    3. Generate images from prompts
+    4. Convert images to videos
+    5. Insert b-roll videos into main video
     """
 
     def __init__(self, max_segments: int = 3):
@@ -62,6 +66,7 @@ class UnifiedWorkflow:
         Args:
             max_segments: Maximum number of segments to generate (default: 3)
         """
+        self.video_transcriber = VideoTranscriber()
         self.broll_analyzer = BRollAnalyzer(
             segment_duration=VIDEO_DURATION, max_segments=max_segments
         )
@@ -77,6 +82,8 @@ class UnifiedWorkflow:
         )
         self.transcript_dir = self.data_dir / "audio_transcript"
         self.prompts_dir = self.data_dir / "broll_prompts"
+        self.input_video_dir = self.data_dir / "input_video"
+        self.final_video_dir = self.data_dir / "video_output"
         # Fix path construction to avoid duplication
         self.images_dir = Path(DEFAULT_IMAGES_OUTPUT_DIR)
         self.videos_dir = Path(DEFAULT_VIDEOS_OUTPUT_DIR)
@@ -85,14 +92,50 @@ class UnifiedWorkflow:
         for directory in [
             self.transcript_dir,
             self.prompts_dir,
+            self.input_video_dir,
+            self.final_video_dir,
             self.images_dir,
             self.videos_dir,
         ]:
             directory.mkdir(parents=True, exist_ok=True)
 
+    def transcribe_video_file(self, video_file_path: str) -> str:
+        """
+        Step 1: Transcribe video file to get word-level timestamps
+
+        Args:
+            video_file_path: Path to the input video file
+
+        Returns:
+            Path to the generated transcript JSON file
+        """
+        logger.info("🎵 STEP 1: Transcribing video file")
+        logger.info("=" * 60)
+
+        try:
+            # Set output path for transcript
+            transcript_file = (
+                self.transcript_dir / "transcription_verbose_to_json.json"
+            )
+
+            # Transcribe video
+            result_path = self.video_transcriber.transcribe_video_to_json(
+                video_file_path=video_file_path,
+                output_json_path=str(transcript_file),
+            )
+
+            logger.info(f"✅ Video transcription completed")
+            logger.info(f"📁 Saved to: {result_path}")
+
+            return result_path
+
+        except Exception as e:
+            logger.info(f"❌ Error in video transcription: {e}")
+            raise
+
     def process_transcript_to_prompts(self, transcript_file: str) -> Dict:
         """
-        Step 1: Process audio transcript and generate b-roll prompts
+        Step 2: Process audio transcript and generate b-roll prompts
 
         Args:
             transcript_file: Path to the transcript JSON file
@@ -100,7 +143,7 @@ class UnifiedWorkflow:
         Returns:
             Dictionary with b-roll prompts and metadata
         """
-        logger.info("🎯 STEP 1: Processing transcript to b-roll prompts")
+        logger.info("\n🎯 STEP 2: Processing transcript to b-roll prompts")
         logger.info("=" * 60)
         logger.info(f"🎯 Target segments: {self.max_segments}")
 
@@ -141,15 +184,15 @@ class UnifiedWorkflow:
 
     def generate_images_from_prompts(self, prompts_data: Dict) -> List[Dict]:
         """
-        Step 2: Generate images from b-roll prompts
+        Step 3: Generate images from b-roll prompts
 
         Args:
-            prompts_data: Dictionary with b-roll prompts from step 1
+            prompts_data: Dictionary with b-roll prompts from step 2
 
         Returns:
             List of generated image information
         """
-        logger.info("\n🎨 STEP 2: Generating images from prompts")
+        logger.info("\n🎨 STEP 3: Generating images from prompts")
         logger.info("=" * 60)
 
         image_results = []
@@ -205,15 +248,15 @@ class UnifiedWorkflow:
         self, image_results: List[Dict]
     ) -> List[Dict]:
         """
-        Step 3: Convert images to videos
+        Step 4: Convert images to videos
 
         Args:
-            image_results: List of generated image information from step 2
+            image_results: List of generated image information from step 3
 
         Returns:
             List of generated video information
         """
-        logger.info("\n🎬 STEP 3: Creating videos from images")
+        logger.info("\n🎬 STEP 4: Creating videos from images")
         logger.info("=" * 60)
 
         video_results = []
@@ -277,23 +320,54 @@ class UnifiedWorkflow:
         logger.info(f"\n✅ Created {len(video_results)} videos successfully")
         return video_results
 
-    def run_complete_workflow(self, transcript_file: str) -> Dict:
+    def insert_broll_into_main_video(
+        self, main_video_path: str, video_results: List[Dict]
+    ) -> str:
         """
-        Run the complete workflow from transcript to videos
+        Step 5: Insert b-roll videos into main video
 
         Args:
-            transcript_file: Path to the transcript JSON file
+            main_video_path: Path to the main video file
+            video_results: List of generated video information from step 4
+
+        Returns:
+            Path to the final video with b-roll inserted
+        """
+        logger.info("\n🎞️ STEP 5: Inserting b-roll into main video")
+        logger.info("=" * 60)
+
+        try:
+            # Process video with b-roll
+            final_video_path = process_video_with_broll(
+                heygen_video_path=main_video_path,
+                output_folder=str(self.final_video_dir),
+            )
+
+            logger.info(f"✅ Final video created with b-roll insertions")
+            logger.info(f"📁 Saved to: {final_video_path}")
+
+            return final_video_path
+
+        except Exception as e:
+            logger.info(f"❌ Error in video editing: {e}")
+            raise
+
+    def run_complete_workflow(self, video_file_path: str) -> Dict:
+        """
+        Run the complete workflow from video file to final edited video
+
+        Args:
+            video_file_path: Path to the input video file
 
         Returns:
             Dictionary with complete workflow results
         """
-        logger.info("🚀 STARTING UNIFIED WORKFLOW")
+        logger.info("🚀 STARTING COMPLETE VIDEO WORKFLOW")
         logger.info("=" * 60)
-        logger.info(f"📁 Input transcript: {transcript_file}")
-        video_step = (
-            "→ Videos" if ENABLE_VIDEO_GENERATION else "→ [Videos SKIPPED]"
+        logger.info(f"📁 Input video: {video_file_path}")
+        logger.info(
+            f"🎯 Workflow: Video → Transcript → Prompts → Images → Videos → Final Edit"
         )
-        logger.info(f"🎯 Workflow: Transcript → Prompts → Images {video_step}")
         logger.info(
             f"🎬 Video generation: {'ENABLED' if ENABLE_VIDEO_GENERATION else 'DISABLED'}"
         )
@@ -302,13 +376,16 @@ class UnifiedWorkflow:
         start_time = time.time()
 
         try:
-            # Step 1: Process transcript to prompts
+            # Step 1: Transcribe video file
+            transcript_file = self.transcribe_video_file(video_file_path)
+
+            # Step 2: Process transcript to prompts
             prompts_data = self.process_transcript_to_prompts(transcript_file)
 
-            # Step 2: Generate images from prompts
+            # Step 3: Generate images from prompts
             image_results = self.generate_images_from_prompts(prompts_data)
 
-            # Step 3: Create videos from images (if enabled)
+            # Step 4: Create videos from images (if enabled)
             if ENABLE_VIDEO_GENERATION:
                 video_results = self.create_videos_from_images(image_results)
             else:
@@ -317,10 +394,23 @@ class UnifiedWorkflow:
                 )
                 video_results = []
 
+            # Step 5: Insert b-roll into main video (if videos were generated)
+            if ENABLE_VIDEO_GENERATION and video_results:
+                final_video_path = self.insert_broll_into_main_video(
+                    video_file_path, video_results
+                )
+            else:
+                logger.info(
+                    "\n⏭️ SKIPPING FINAL VIDEO EDITING (No b-roll videos generated)"
+                )
+                final_video_path = None
+
             # Compile final results
             workflow_results = {
                 "workflow_info": {
-                    "input_transcript": transcript_file,
+                    "input_video": video_file_path,
+                    "transcript_file": transcript_file,
+                    "final_video": final_video_path,
                     "total_duration": time.time() - start_time,
                     "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
                     "api_used": config.is_api_enabled,
@@ -329,12 +419,14 @@ class UnifiedWorkflow:
                 "prompts_data": prompts_data,
                 "image_results": image_results,
                 "video_results": video_results,
+                "final_video_path": final_video_path,
                 "summary": {
                     "total_segments": len(
                         prompts_data.get("broll_segments", [])
                     ),
                     "images_generated": len(image_results),
                     "videos_created": len(video_results),
+                    "final_video_created": final_video_path is not None,
                     "success_rate": {
                         "images": f"{len(image_results)}/{len(prompts_data.get('broll_segments', []))}",
                         "videos": f"{len(video_results)}/{len(image_results)}",
@@ -364,7 +456,7 @@ class UnifiedWorkflow:
     def print_workflow_summary(self, results: Dict):
         """Print a comprehensive summary of the workflow results."""
         logger.info("\n" + "=" * 60)
-        logger.info("📊 WORKFLOW COMPLETE - FINAL SUMMARY")
+        logger.info("📊 COMPLETE VIDEO WORKFLOW - FINAL SUMMARY")
         logger.info("=" * 60)
 
         summary = results["summary"]
@@ -382,8 +474,12 @@ class UnifiedWorkflow:
         logger.info(f"🎨 Images generated: {summary['images_generated']}")
         if ENABLE_VIDEO_GENERATION:
             logger.info(f"🎬 Videos created: {summary['videos_created']}")
+            logger.info(
+                f"🎞️ Final video created: {'✅ YES' if summary['final_video_created'] else '❌ NO'}"
+            )
         else:
             logger.info(f"🎬 Videos created: [SKIPPED]")
+            logger.info(f"🎞️ Final video created: [SKIPPED]")
         logger.info(f"📈 Success rates:")
         logger.info(f"   • Images: {summary['success_rate']['images']}")
         if ENABLE_VIDEO_GENERATION:
@@ -392,19 +488,29 @@ class UnifiedWorkflow:
             logger.info(f"   • Videos: [SKIPPED]")
 
         logger.info(f"\n📁 Output files:")
+        logger.info(
+            f"   • Transcript: {workflow_info.get('transcript_file', 'N/A')}"
+        )
         logger.info(f"   • Prompts: {self.prompts_dir}")
         logger.info(f"   • Images: {self.images_dir}")
         if ENABLE_VIDEO_GENERATION:
-            logger.info(f"   • Videos: {self.videos_dir}")
+            logger.info(f"   • B-roll videos: {self.videos_dir}")
+            if workflow_info.get("final_video"):
+                logger.info(
+                    f"   • Final video: {workflow_info['final_video']}"
+                )
         else:
             logger.info(f"   • Videos: [SKIPPED]")
         logger.info(
             f"   • Report: {self.data_dir}/workflow_complete_report.json"
         )
 
-        if ENABLE_VIDEO_GENERATION and summary["videos_created"] > 0:
-            logger.info(f"\n🎉 Workflow completed successfully!")
-            logger.info(f"🚀 Ready to use generated videos for your content!")
+        if ENABLE_VIDEO_GENERATION and summary.get("final_video_created"):
+            logger.info(f"\n🎉 Complete workflow finished successfully!")
+            logger.info(f"🚀 Final video with b-roll is ready to use!")
+        elif ENABLE_VIDEO_GENERATION and summary["videos_created"] > 0:
+            logger.info(f"\n⚠️ Workflow completed with partial success!")
+            logger.info(f"🎬 B-roll videos created but final editing failed!")
         elif not ENABLE_VIDEO_GENERATION:
             logger.info(
                 f"\n✅ Workflow completed successfully (videos skipped)!"
@@ -419,23 +525,33 @@ class UnifiedWorkflow:
 
 def main():
     """Main function to run the unified workflow."""
-    # Default transcript file path - use data_mock when mock mode is enabled
+    # Default video file path - use data_mock when mock mode is enabled
     base_data_dir = "data_mock" if config.is_mock_enabled else "data"
-    DEFAULT_TRANSCRIPT = (
+    DEFAULT_VIDEO_FILE = (
         Path(__file__).parent
-        / f"{base_data_dir}/video_generation/audio_transcript/transcription_verbose_to_json.json"
+        / f"{base_data_dir}/video_generation/input_video/video.mp4"
     )
 
-    # Check if transcript file exists
-    if not DEFAULT_TRANSCRIPT.exists():
-        logger.info(f"❌ Transcript file not found: {DEFAULT_TRANSCRIPT}")
-        logger.info("Please ensure you have a valid transcript JSON file.")
+    # Check if video file exists
+    if not DEFAULT_VIDEO_FILE.exists():
+        logger.info(f"❌ Video file not found: {DEFAULT_VIDEO_FILE}")
+        logger.info(
+            "Please ensure you have a valid video file in the input_video directory."
+        )
+
+        # Create the directory if it doesn't exist
+        DEFAULT_VIDEO_FILE.parent.mkdir(parents=True, exist_ok=True)
+        logger.info(f"📁 Created directory: {DEFAULT_VIDEO_FILE.parent}")
+        logger.info(
+            f"📝 Please place your video file at: {DEFAULT_VIDEO_FILE}"
+        )
         return False
 
     try:
         # Example: Create workflow with custom number of segments
         # You can change this value to control how many segments to generate
-        MAX_SEGMENTS = 5  # Change this to control number of segments
+        MAX_SEGMENTS = 1  # Change this to control number of segments
+        # MAX_SEGMENTS = 3  # Change this to control number of segments
 
         logger.info(
             f"🎯 Configuring workflow with max {MAX_SEGMENTS} segments"
@@ -443,9 +559,12 @@ def main():
 
         # Initialize and run workflow
         workflow = UnifiedWorkflow(max_segments=MAX_SEGMENTS)
-        results = workflow.run_complete_workflow(DEFAULT_TRANSCRIPT)
+        results = workflow.run_complete_workflow(str(DEFAULT_VIDEO_FILE))
 
-        return results["summary"]["videos_created"] > 0
+        return (
+            results["summary"].get("final_video_created", False)
+            or results["summary"]["videos_created"] > 0
+        )
 
     except Exception as e:
         logger.info(f"❌ Workflow execution failed: {e}")
@@ -456,6 +575,7 @@ if __name__ == "__main__":
     success = main()
 
     if success:
-        logger.info(f"\n✅ Unified workflow completed successfully!")
+        logger.info(f"\n✅ Complete video workflow finished successfully!")
+        logger.info(f"🎬 Your video with b-roll content is ready!")
     else:
         logger.info(f"\n❌ Workflow failed. Please check the errors above.")
