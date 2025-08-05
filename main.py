@@ -12,9 +12,9 @@ from b_roll.constants import (
     DEFAULT_IMAGES_OUTPUT_DIR,
     DEFAULT_VIDEOS_OUTPUT_DIR,
 )
-from b_roll.file_archiver import FileArchiver
 from b_roll.logger_config import logger
 from b_roll.workflow import UnifiedWorkflow
+from file_archiver import FileArchiver
 
 
 def archive_files(enable_archiving=True, delete_originals=True):
