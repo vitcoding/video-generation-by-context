@@ -2,6 +2,37 @@
 """
 Unified Workflow for Audio Transcript Processing
 Converts audio transcript to b-roll prompts, generates images, and creates videos.
+
+NEW FUNCTIONALITY:
+
+1. Flexible workflow execution:
+   - start_stage="transcription" - start from video transcription (default)
+   - start_stage="analysis" - start from existing transcript analysis
+
+2. Skip stages:
+   - skip_video_generation=True - skip video generation and final video editing
+
+3. Convenience methods:
+   - run_from_video() - run from video file
+   - run_from_transcript() - run from transcript
+   - run_images_only() - generate images only
+
+Usage examples:
+   # Complete workflow from video
+   workflow = UnifiedWorkflow(max_segments=3)
+   results = workflow.run_from_video("video.mp4")
+
+   # Start from existing transcript (uses default path automatically)
+   workflow = UnifiedWorkflow(start_stage="analysis")
+   results = workflow.run_from_transcript()  # Uses default transcript file
+
+   # Start from custom transcript file
+   workflow = UnifiedWorkflow(start_stage="analysis")
+   results = workflow.run_from_transcript("custom/transcript.json")
+
+   # Generate images only
+   workflow = UnifiedWorkflow(skip_video_generation=True)
+   results = workflow.run_images_only(video_file_path="video.mp4")
 """
 
 import json
@@ -60,12 +91,19 @@ class UnifiedWorkflow:
     5. Insert b-roll videos into main video
     """
 
-    def __init__(self, max_segments: int = 3):
+    def __init__(
+        self,
+        max_segments: int = 3,
+        start_stage: str = "transcription",
+        skip_video_generation: bool = False,
+    ):
         """
         Initialize the unified workflow with all components.
 
         Args:
             max_segments: Maximum number of segments to generate (default: 3)
+            start_stage: Stage to start from ('transcription' or 'analysis')
+            skip_video_generation: Skip video generation and final video editing (default: False)
         """
         self.video_transcriber = VideoTranscriber()
         self.broll_analyzer = BRollAnalyzer(
@@ -74,6 +112,16 @@ class UnifiedWorkflow:
         self.image_generator = ImageGenerator()
         self.video_generator = KlingImageToVideoGenerator()
         self.max_segments = max_segments
+
+        # Workflow control parameters
+        self.start_stage = start_stage.lower()
+        self.skip_video_generation = skip_video_generation
+
+        # Validate start_stage parameter
+        if self.start_stage not in ["transcription", "analysis"]:
+            raise ValueError(
+                "start_stage must be 'transcription' or 'analysis'"
+            )
 
         # Workflow directories
         # Use data_mock directory when mock mode is enabled
@@ -353,32 +401,79 @@ class UnifiedWorkflow:
             logger.info(f"❌ Error in video editing: {e}")
             raise
 
-    def run_complete_workflow(self, video_file_path: str) -> Dict:
+    def run_complete_workflow(
+        self,
+        video_file_path: Optional[str] = None,
+        transcript_file_path: Optional[str] = None,
+    ) -> Dict:
         """
         Run the complete workflow from video file to final edited video
 
         Args:
-            video_file_path: Path to the input video file
+            video_file_path: Path to the input video file (required if start_stage='transcription')
+            transcript_file_path: Path to existing transcript file (required if start_stage='analysis')
 
         Returns:
             Dictionary with complete workflow results
         """
         logger.info("🚀 STARTING COMPLETE VIDEO WORKFLOW")
         logger.info("=" * 60)
-        logger.info(f"📁 Input video: {video_file_path}")
-        logger.info(
-            f"🎯 Workflow: Video → Transcript → Prompts → Images → Videos → Final Edit"
-        )
-        logger.info(
-            f"🎬 Video generation: {'ENABLED' if ENABLE_VIDEO_GENERATION else 'DISABLED'}"
-        )
+
+        # Validate input parameters based on start stage
+        if self.start_stage == "transcription" and not video_file_path:
+            raise ValueError(
+                "video_file_path is required when start_stage='transcription'"
+            )
+        elif self.start_stage == "analysis" and not transcript_file_path:
+            # Use default transcript file path if not provided
+            default_transcript_file = (
+                self.transcript_dir / "transcription_verbose_to_json.json"
+            )
+            if default_transcript_file.exists():
+                transcript_file_path = str(default_transcript_file)
+                logger.info(
+                    f"🔍 Using default transcript file: {transcript_file_path}"
+                )
+            else:
+                raise ValueError(
+                    f"transcript_file_path is required when start_stage='analysis'. "
+                    f"Default file not found: {default_transcript_file}"
+                )
+
+        logger.info(f"🚀 Starting from stage: {self.start_stage.upper()}")
+        logger.info(f"📁 Input video: {video_file_path or 'N/A'}")
+        logger.info(f"📄 Input transcript: {transcript_file_path or 'N/A'}")
+
+        workflow_stages = []
+        if self.start_stage == "transcription":
+            workflow_stages.append("Video → Transcript")
+        workflow_stages.extend(["Transcript → Prompts", "Prompts → Images"])
+
+        if not self.skip_video_generation:
+            workflow_stages.extend(["Images → Videos", "Videos → Final Edit"])
+
+        logger.info(f"🎯 Workflow stages: {' → '.join(workflow_stages)}")
+
+        # Check what will be skipped
+        if self.skip_video_generation:
+            logger.info(
+                f"⏭️ Skipped stages: Video Generation, Final Video Editing"
+            )
+
         logger.info("=" * 60)
 
         start_time = time.time()
 
         try:
-            # Step 1: Transcribe video file
-            transcript_file = self.transcribe_video_file(video_file_path)
+            # Step 1: Transcribe video file (if starting from transcription)
+            if self.start_stage == "transcription":
+                transcript_file = self.transcribe_video_file(video_file_path)
+            else:
+                transcript_file = transcript_file_path
+                logger.info(
+                    "⏭️ SKIPPING VIDEO TRANSCRIPTION (starting from analysis)"
+                )
+                logger.info(f"📄 Using existing transcript: {transcript_file}")
 
             # Step 2: Process transcript to prompts
             prompts_data = self.process_transcript_to_prompts(transcript_file)
@@ -386,23 +481,43 @@ class UnifiedWorkflow:
             # Step 3: Generate images from prompts
             image_results = self.generate_images_from_prompts(prompts_data)
 
-            # Step 4: Create videos from images (if enabled)
-            if ENABLE_VIDEO_GENERATION:
+            # Step 4: Create videos from images (if not skipped)
+            if not self.skip_video_generation and ENABLE_VIDEO_GENERATION:
                 video_results = self.create_videos_from_images(image_results)
             else:
-                logger.info(
-                    "\n⏭️ SKIPPING VIDEO GENERATION (ENABLE_VIDEO_GENERATION = False)"
-                )
+                if self.skip_video_generation:
+                    logger.info(
+                        "\n⏭️ SKIPPING VIDEO GENERATION (skip_video_generation = True)"
+                    )
+                else:
+                    logger.info(
+                        "\n⏭️ SKIPPING VIDEO GENERATION (ENABLE_VIDEO_GENERATION = False)"
+                    )
                 video_results = []
 
-            # Step 5: Insert b-roll into main video (if videos were generated)
-            if ENABLE_VIDEO_GENERATION and video_results:
+            # Step 5: Insert b-roll into main video (if not skipped and videos were generated)
+            if (
+                not self.skip_video_generation
+                and ENABLE_VIDEO_GENERATION
+                and video_results
+                and self.start_stage == "transcription"
+            ):
                 final_video_path = self.insert_broll_into_main_video(
                     video_file_path, video_results
                 )
             else:
+                skip_reasons = []
+                if self.skip_video_generation:
+                    skip_reasons.append("skip_video_generation = True")
+                if not ENABLE_VIDEO_GENERATION:
+                    skip_reasons.append("ENABLE_VIDEO_GENERATION = False")
+                if not video_results:
+                    skip_reasons.append("no b-roll videos generated")
+                if self.start_stage == "analysis":
+                    skip_reasons.append("started from analysis stage")
+
                 logger.info(
-                    "\n⏭️ SKIPPING FINAL VIDEO EDITING (No b-roll videos generated)"
+                    f"\n⏭️ SKIPPING FINAL VIDEO EDITING ({', '.join(skip_reasons)})"
                 )
                 final_video_path = None
 
@@ -410,12 +525,19 @@ class UnifiedWorkflow:
             workflow_results = {
                 "workflow_info": {
                     "input_video": video_file_path,
+                    "input_transcript": (
+                        transcript_file_path
+                        if self.start_stage == "analysis"
+                        else None
+                    ),
                     "transcript_file": transcript_file,
                     "final_video": final_video_path,
                     "total_duration": time.time() - start_time,
                     "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
                     "api_used": config.is_api_enabled,
                     "max_segments": self.max_segments,
+                    "start_stage": self.start_stage,
+                    "skip_video_generation": self.skip_video_generation,
                 },
                 "prompts_data": prompts_data,
                 "image_results": image_results,
@@ -454,6 +576,64 @@ class UnifiedWorkflow:
             traceback.print_exc()
             raise
 
+    def run_from_video(self, video_file_path: str) -> Dict:
+        """
+        Convenience method to run complete workflow starting from video transcription.
+
+        Args:
+            video_file_path: Path to the input video file
+
+        Returns:
+            Dictionary with complete workflow results
+        """
+        return self.run_complete_workflow(video_file_path=video_file_path)
+
+    def run_from_transcript(
+        self, transcript_file_path: Optional[str] = None
+    ) -> Dict:
+        """
+        Convenience method to run workflow starting from transcript analysis.
+
+        Args:
+            transcript_file_path: Path to existing transcript file.
+                                If None, uses default path: transcript_dir/transcription_verbose_to_json.json
+
+        Returns:
+            Dictionary with workflow results (excluding transcription)
+        """
+        return self.run_complete_workflow(
+            transcript_file_path=transcript_file_path
+        )
+
+    def run_images_only(
+        self,
+        video_file_path: Optional[str] = None,
+        transcript_file_path: Optional[str] = None,
+    ) -> Dict:
+        """
+        Convenience method to run workflow up to image generation only.
+
+        Args:
+            video_file_path: Path to video file (if starting from transcription)
+            transcript_file_path: Path to transcript file (if starting from analysis)
+
+        Returns:
+            Dictionary with workflow results (images only)
+        """
+        # Temporarily set skip flags
+        original_skip_video = self.skip_video_generation
+
+        self.skip_video_generation = True
+
+        try:
+            return self.run_complete_workflow(
+                video_file_path=video_file_path,
+                transcript_file_path=transcript_file_path,
+            )
+        finally:
+            # Restore original settings
+            self.skip_video_generation = original_skip_video
+
     def print_workflow_summary(self, results: Dict):
         """Print a comprehensive summary of the workflow results."""
         logger.info("\n" + "=" * 60)
@@ -467,13 +647,20 @@ class UnifiedWorkflow:
             f"⏱️ Total processing time: {workflow_info['total_duration']:.1f} seconds"
         )
         logger.info(
+            f"🚀 Started from stage: {workflow_info['start_stage'].upper()}"
+        )
+        logger.info(
             f"🎯 Max segments configured: {workflow_info.get('max_segments', 'N/A')}"
         )
         logger.info(
             f"📝 Transcript segments analyzed: {summary['total_segments']}"
         )
         logger.info(f"🎨 Images generated: {summary['images_generated']}")
-        if ENABLE_VIDEO_GENERATION:
+
+        if (
+            not workflow_info.get("skip_video_generation", False)
+            and ENABLE_VIDEO_GENERATION
+        ):
             logger.info(f"🎬 Videos created: {summary['videos_created']}")
             logger.info(
                 f"🎞️ Final video created: {'✅ YES' if summary['final_video_created'] else '❌ NO'}"
@@ -481,20 +668,32 @@ class UnifiedWorkflow:
         else:
             logger.info(f"🎬 Videos created: [SKIPPED]")
             logger.info(f"🎞️ Final video created: [SKIPPED]")
+
         logger.info(f"📈 Success rates:")
         logger.info(f"   • Images: {summary['success_rate']['images']}")
-        if ENABLE_VIDEO_GENERATION:
+        if (
+            not workflow_info.get("skip_video_generation", False)
+            and ENABLE_VIDEO_GENERATION
+        ):
             logger.info(f"   • Videos: {summary['success_rate']['videos']}")
         else:
             logger.info(f"   • Videos: [SKIPPED]")
 
         logger.info(f"\n📁 Output files:")
+        if workflow_info.get("input_transcript"):
+            logger.info(
+                f"   • Input transcript: {workflow_info['input_transcript']}"
+            )
         logger.info(
             f"   • Transcript: {workflow_info.get('transcript_file', 'N/A')}"
         )
         logger.info(f"   • Prompts: {self.prompts_dir}")
         logger.info(f"   • Images: {self.images_dir}")
-        if ENABLE_VIDEO_GENERATION:
+
+        if (
+            not workflow_info.get("skip_video_generation", False)
+            and ENABLE_VIDEO_GENERATION
+        ):
             logger.info(f"   • B-roll videos: {self.videos_dir}")
             if workflow_info.get("final_video"):
                 logger.info(
@@ -502,17 +701,24 @@ class UnifiedWorkflow:
                 )
         else:
             logger.info(f"   • Videos: [SKIPPED]")
+
         logger.info(
             f"   • Report: {self.data_dir}/workflow_complete_report.json"
         )
 
-        if ENABLE_VIDEO_GENERATION and summary.get("final_video_created"):
+        # Final status messages
+        video_gen_enabled = (
+            not workflow_info.get("skip_video_generation", False)
+            and ENABLE_VIDEO_GENERATION
+        )
+
+        if video_gen_enabled and summary.get("final_video_created"):
             logger.info(f"\n🎉 Complete workflow finished successfully!")
             logger.info(f"🚀 Final video with b-roll is ready to use!")
-        elif ENABLE_VIDEO_GENERATION and summary["videos_created"] > 0:
+        elif video_gen_enabled and summary["videos_created"] > 0:
             logger.info(f"\n⚠️ Workflow completed with partial success!")
             logger.info(f"🎬 B-roll videos created but final editing failed!")
-        elif not ENABLE_VIDEO_GENERATION:
+        elif not video_gen_enabled:
             logger.info(
                 f"\n✅ Workflow completed successfully (videos skipped)!"
             )
@@ -525,7 +731,31 @@ class UnifiedWorkflow:
 
 
 def main():
-    """Main function to run the unified workflow."""
+    """
+    Main function to run the unified workflow.
+
+    Examples of usage with new parameters:
+
+    # Standard workflow from video to final result
+    workflow = UnifiedWorkflow(max_segments=3)
+    results = workflow.run_from_video("path/to/video.mp4")
+
+    # Start from existing transcript (automatic default path)
+    workflow = UnifiedWorkflow(start_stage="analysis")
+    results = workflow.run_from_transcript()  # Uses default transcript file
+
+    # Start from custom transcript file
+    workflow = UnifiedWorkflow(start_stage="analysis")
+    results = workflow.run_from_transcript("path/to/custom/transcript.json")
+
+    # Generate only images (skip video generation)
+    workflow = UnifiedWorkflow(skip_video_generation=True)
+    results = workflow.run_images_only(video_file_path="path/to/video.mp4")
+
+    # Skip video generation and editing
+    workflow = UnifiedWorkflow(skip_video_generation=True)
+    results = workflow.run_from_video("path/to/video.mp4")
+    """
     # Default video file path - use data_mock when mock mode is enabled
     base_data_dir = "data_mock" if config.is_mock_enabled else "data"
     DEFAULT_VIDEO_FILE = (
@@ -555,7 +785,9 @@ def main():
 
         # Initialize and run workflow
         workflow = UnifiedWorkflow(max_segments=MAX_SEGMENTS)
-        results = workflow.run_complete_workflow(str(DEFAULT_VIDEO_FILE))
+        results = workflow.run_complete_workflow(
+            video_file_path=str(DEFAULT_VIDEO_FILE)
+        )
 
         return (
             results["summary"].get("final_video_created", False)

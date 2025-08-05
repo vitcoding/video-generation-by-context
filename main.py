@@ -48,7 +48,18 @@ def main():
         )
 
         # Initialize unified workflow
-        workflow = UnifiedWorkflow(max_segments=MAX_SEGMENTS)
+        # workflow = UnifiedWorkflow(max_segments=MAX_SEGMENTS)
+        # Alternative configurations:
+        # For images only (skip video generation):
+        workflow = UnifiedWorkflow(
+            max_segments=MAX_SEGMENTS,
+            start_stage="analysis",  # Start from transcription analysis (default)
+            skip_video_generation=True,  # Skip video generation if needed
+        )
+        # Alternative configurations:
+        # For images only (skip video generation):
+        # workflow = UnifiedWorkflow(max_segments=MAX_SEGMENTS, skip_video_generation=True)
+        # results = workflow.run_images_only(video_file_path=video_file_path)
 
         # Set video file path based on mock mode
         base_data_dir = "data_mock" if config.is_mock_enabled else "data"
@@ -74,7 +85,12 @@ def main():
         logger.info("")
 
         # Run the complete workflow
-        results = workflow.run_complete_workflow(video_file_path)
+        if "analysis" in str(workflow.start_stage):
+            # Start from transcript analysis (uses default transcript file path)
+            results = workflow.run_from_transcript()
+        else:
+            # Start from video transcription
+            results = workflow.run_from_video(video_file_path)
 
         # Check results
         summary = results.get("summary", {})

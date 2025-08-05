@@ -7,7 +7,7 @@ from typing import List, Optional
 
 from dotenv import load_dotenv
 
-# Добавляем путь для импорта констант и логера
+# Add path for importing constants and logger
 sys.path.append(str(Path(__file__).parent.parent))
 from config import config
 from constants import (
