@@ -47,20 +47,29 @@ def main():
             f"🎯 Configured for maximum {MAX_SEGMENTS} b-roll segments"
         )
 
+        # -------WORKFLOW------------------------------------------------------
         # Initialize unified workflow
-        # workflow = UnifiedWorkflow(max_segments=MAX_SEGMENTS)
-        # Alternative configurations:
-        # For images only (skip video generation):
+
+        # -------WORKFLOW CONFIGURATION 1 (DEFAULT)----------------------------
         workflow = UnifiedWorkflow(
             max_segments=MAX_SEGMENTS,
-            start_stage="analysis",  # Start from transcription analysis (default)
-            skip_video_generation=True,  # Skip video generation if needed
+            # start_stage="analysis",
         )
+
+        # -------WORKFLOW CONFIGURATION 2--------------------------------------
+        # For images only (skip video generation):
+        # workflow = UnifiedWorkflow(
+        #     max_segments=MAX_SEGMENTS,
+        #     # start_stage="transcription",  # Start from transcription (default)
+        #     start_stage="analysis",  # Start from transcription analysis
+        #     skip_video_generation=True,  # Skip video generation if needed
+        # )
         # Alternative configurations:
         # For images only (skip video generation):
         # workflow = UnifiedWorkflow(max_segments=MAX_SEGMENTS, skip_video_generation=True)
         # results = workflow.run_images_only(video_file_path=video_file_path)
 
+        # -------VIDEO FILE PATH-----------------------------------------------
         # Set video file path based on mock mode
         base_data_dir = "data_mock" if config.is_mock_enabled else "data"
         video_file_path = (
@@ -84,10 +93,13 @@ def main():
         logger.info(f"📹 Input video file: {video_file_path}")
         logger.info("")
 
+        # -------RUN THE WORKFLOW----------------------------------------------
         # Run the complete workflow
         if "analysis" in str(workflow.start_stage):
             # Start from transcript analysis (uses default transcript file path)
-            results = workflow.run_from_transcript()
+            results = workflow.run_from_transcript(
+                video_file_path=video_file_path
+            )
         else:
             # Start from video transcription
             results = workflow.run_from_video(video_file_path)
