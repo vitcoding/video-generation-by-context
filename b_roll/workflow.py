@@ -28,6 +28,7 @@ from constants import (
     DEFAULT_VIDEOS_OUTPUT_DIR,
     ENABLE_VIDEO_GENERATION,
     IMAGE_ASPECT_RATIO,
+    MAX_SEGMENTS,
     VIDEO_DURATION,
     VIDEO_FPS,
     VIDEO_RESOLUTION,
@@ -548,11 +549,6 @@ def main():
         return False
 
     try:
-        # Example: Create workflow with custom number of segments
-        # You can change this value to control how many segments to generate
-        MAX_SEGMENTS = 1  # Change this to control number of segments
-        # MAX_SEGMENTS = 3  # Change this to control number of segments
-
         logger.info(
             f"🎯 Configuring workflow with max {MAX_SEGMENTS} segments"
         )

@@ -14,6 +14,7 @@ import os
 from pathlib import Path
 
 from b_roll.config import config
+from b_roll.constants import MAX_SEGMENTS
 from b_roll.logger_config import logger
 from b_roll.workflow import UnifiedWorkflow
 
@@ -42,9 +43,6 @@ def main():
     logger.info("")
 
     try:
-        # Configure number of segments to generate
-        MAX_SEGMENTS = 3  # Change this to control number of segments
-
         logger.info(
             f"🎯 Configured for maximum {MAX_SEGMENTS} b-roll segments"
         )

@@ -58,6 +58,10 @@ DEFAULT_NUM_INFERENCE_STEPS = (
 ENABLE_VIDEO_GENERATION = True  # Flag to enable/disable video generation
 # ENABLE_VIDEO_GENERATION = False  # Set to False to skip video generation
 
+# B-roll generation configuration
+MAX_SEGMENTS = 1  # Maximum number of b-roll segments to generate
+# MAX_SEGMENTS = 3  # Maximum number of b-roll segments to generate
+
 # Content policy replacements (for API compliance)
 CONTENT_REPLACEMENTS = {
     "AI-dominated world": "world of advanced technology",
