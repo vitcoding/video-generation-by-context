@@ -41,30 +41,8 @@ ENABLE_VIDEO_GENERATION = True  # Flag to enable/disable video generation
 # ENABLE_VIDEO_GENERATION = False  # Set to False to skip video generation
 
 # B-roll generation configuration
-MAX_SEGMENTS = 1  # Maximum number of b-roll segments to generate
-# MAX_SEGMENTS = 3  # Maximum number of b-roll segments to generate
-
-# Content policy replacements (for API compliance)
-CONTENT_REPLACEMENTS = {
-    "AI-dominated world": "world of advanced technology",
-    "AI projection": "digital projection",
-    "holographic AI projection": "holographic digital display",
-    "AI hologram": "digital hologram",
-    "humanoid shape": "abstract geometric shape",
-    "AI avatar generation": "digital character design",
-    "avatar generation": "character design",
-    "avatar being digitally rendered": "character being designed",
-    "avatar": "digital character",
-    "digital avatar": "digital character",
-    "finished avatar blinking": "finished character animation",
-    "avatar's digital eye": "character's digital features",
-    "AI generation": "digital creation",
-    "AI-generated": "digitally created",
-    "deepfake": "digital effect",
-    "synthetic": "digital",
-    "role of AI": "role of intelligent systems",
-    " AI ": " intelligent system ",
-}
+# MAX_SEGMENTS = 1  # Maximum number of b-roll segments to generate
+MAX_SEGMENTS = 3  # Maximum number of b-roll segments to generate
 
 # File paths - dynamically set based on mock mode
 import sys
@@ -90,9 +68,7 @@ VIDEOS_OUTPUT_DIR_NAME = "videos_output"
 BASE_DATA_DIR_PATH = (
     f"./{B_ROLL_MODULE_NAME}/{base_data_dir}/{VIDEO_GENERATION_DIR_NAME}"
 )
-BASE_RELATIVE_PATH = (
-    f"{B_ROLL_MODULE_NAME}/{base_data_dir}/{VIDEO_GENERATION_DIR_NAME}"
-)
+BASE_RELATIVE_PATH = f"{base_data_dir}/{VIDEO_GENERATION_DIR_NAME}"
 
 # Main directory paths
 AUDIO_TRANSCRIPT_DIR = f"{BASE_DATA_DIR_PATH}/{AUDIO_TRANSCRIPT_DIR_NAME}"

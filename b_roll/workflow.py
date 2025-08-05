@@ -508,7 +508,7 @@ class UnifiedWorkflow:
                 not self.skip_video_generation
                 and ENABLE_VIDEO_GENERATION
                 and video_results
-                and self.start_stage == "transcription"
+                and video_file_path  # Check if original video file exists
             ):
                 final_video_path = self.insert_broll_into_main_video(
                     video_file_path, video_results
@@ -521,8 +521,8 @@ class UnifiedWorkflow:
                     skip_reasons.append("ENABLE_VIDEO_GENERATION = False")
                 if not video_results:
                     skip_reasons.append("no b-roll videos generated")
-                if self.start_stage == "analysis":
-                    skip_reasons.append("started from analysis stage")
+                if not video_file_path:
+                    skip_reasons.append("no original video file provided")
 
                 logger.info(
                     f"\n⏭️ SKIPPING FINAL VIDEO EDITING ({', '.join(skip_reasons)})"
@@ -597,7 +597,9 @@ class UnifiedWorkflow:
         return self.run_complete_workflow(video_file_path=video_file_path)
 
     def run_from_transcript(
-        self, transcript_file_path: Optional[str] = None
+        self,
+        transcript_file_path: Optional[str] = None,
+        video_file_path: Optional[str] = None,
     ) -> Dict:
         """
         Convenience method to run workflow starting from transcript analysis.
@@ -605,12 +607,14 @@ class UnifiedWorkflow:
         Args:
             transcript_file_path: Path to existing transcript file.
                                 If None, uses default path: {AUDIO_TRANSCRIPT_DIR_NAME}/{TRANSCRIPTION_JSON_FILENAME}
+            video_file_path: Path to original video file for final editing with b-roll insertion.
 
         Returns:
             Dictionary with workflow results (excluding transcription)
         """
         return self.run_complete_workflow(
-            transcript_file_path=transcript_file_path
+            transcript_file_path=transcript_file_path,
+            video_file_path=video_file_path,
         )
 
     def run_images_only(

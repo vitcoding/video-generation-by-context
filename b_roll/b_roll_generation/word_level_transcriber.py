@@ -71,20 +71,18 @@ class VideoTranscriber:
         """Get file size in megabytes"""
         return os.path.getsize(file_path) / (1024 * 1024)
 
-    def _compress_video_for_transcription(self, input_path: str) -> str:
+    def _extract_audio_for_transcription(self, input_path: str) -> str:
         """
-        Compress video file to reduce size for OpenAI API
+        Extract audio from video file for transcription
 
         Args:
             input_path: Path to original video file
 
         Returns:
-            str: Path to compressed video file
+            str: Path to extracted audio file
         """
-        # Create temporary file for compressed video
-        temp_fd, temp_path = tempfile.mkstemp(
-            suffix=".mp4", prefix="compressed_"
-        )
+        # Create temporary file for extracted audio
+        temp_fd, temp_path = tempfile.mkstemp(suffix=".mp3", prefix="audio_")
         os.close(temp_fd)  # Close file descriptor, we only need the path
 
         try:
@@ -97,11 +95,11 @@ class VideoTranscriber:
             if os.path.exists(temp_path):
                 os.unlink(temp_path)
             raise Exception(
-                "FFmpeg is not installed or not available in PATH. Please install FFmpeg to compress large video files."
+                "FFmpeg is not installed or not available in PATH. Please install FFmpeg to extract audio from video files."
             )
 
         try:
-            # Use ffmpeg to compress video - extract audio with lower bitrate
+            # Use ffmpeg to extract audio with optimal settings for transcription
             cmd = [
                 "ffmpeg",
                 "-i",
@@ -110,18 +108,20 @@ class VideoTranscriber:
                 "-acodec",
                 "libmp3lame",  # MP3 codec
                 "-ab",
-                "64k",  # 64kbps audio bitrate (low quality but sufficient for transcription)
+                "192k",  # 192kbps audio bitrate (good quality for transcription)
                 "-ar",
-                "16000",  # 16kHz sample rate (sufficient for speech)
+                "22050",  # 22kHz sample rate (good balance of quality and size)
+                "-ac",
+                "1",  # Mono audio (sufficient for transcription)
                 "-y",  # Overwrite output file
                 temp_path,
             ]
 
             logger.info(
-                f"Compressing video for transcription: {input_path} -> {temp_path}"
+                f"Extracting audio for transcription: {input_path} -> {temp_path}"
             )
             logger.info(
-                f"Original size: {self._get_file_size_mb(input_path):.1f} MB"
+                f"Original video size: {self._get_file_size_mb(input_path):.1f} MB"
             )
 
             # Run ffmpeg with suppressed output
@@ -129,8 +129,8 @@ class VideoTranscriber:
                 cmd, capture_output=True, text=True, check=True
             )
 
-            compressed_size = self._get_file_size_mb(temp_path)
-            logger.info(f"Compressed size: {compressed_size:.1f} MB")
+            audio_size = self._get_file_size_mb(temp_path)
+            logger.info(f"Extracted audio size: {audio_size:.1f} MB")
 
             return temp_path
 
@@ -138,9 +138,9 @@ class VideoTranscriber:
             # Clean up temp file on error
             if os.path.exists(temp_path):
                 os.unlink(temp_path)
-            logger.error(f"FFmpeg compression failed: {e.stderr}")
+            logger.error(f"FFmpeg audio extraction failed: {e.stderr}")
             raise Exception(
-                f"Video compression failed. FFmpeg error: {e.stderr}"
+                f"Audio extraction failed. FFmpeg error: {e.stderr}"
             )
         except Exception as e:
             # Clean up temp file on error
@@ -181,40 +181,24 @@ class VideoTranscriber:
         output_path.parent.mkdir(parents=True, exist_ok=True)
         logger.info(f"Output directory created/verified: {output_path.parent}")
 
-        # Step 4: Check file size and compress if necessary
-        MAX_FILE_SIZE_MB = 24.5  # Leave some margin below 25MB limit
-        file_size_mb = self._get_file_size_mb(video_file_path)
-        logger.info(f"Video file size: {file_size_mb:.1f} MB")
+        # Step 4: Extract audio from video for transcription
+        logger.info("Extracting audio from video for transcription...")
 
-        # Use original file or compressed version for transcription
-        file_to_transcribe = video_file_path
-        compressed_file = None
+        # Always extract audio file for better performance and reliability
+        audio_file = self._extract_audio_for_transcription(video_file_path)
 
-        if file_size_mb > MAX_FILE_SIZE_MB:
-            logger.info(
-                f"File size ({file_size_mb:.1f} MB) exceeds limit ({MAX_FILE_SIZE_MB} MB). Compressing..."
-            )
-            compressed_file = self._compress_video_for_transcription(
-                video_file_path
-            )
-            file_to_transcribe = compressed_file
-
-            # Verify compressed file size
-            compressed_size = self._get_file_size_mb(compressed_file)
-            if compressed_size > MAX_FILE_SIZE_MB:
-                logger.warning(
-                    f"Compressed file still large ({compressed_size:.1f} MB), but proceeding..."
-                )
-
-        # Step 5: Transcribe video file
         try:
-            logger.info(f"Starting transcription of: {file_to_transcribe}")
+            audio_size_mb = self._get_file_size_mb(audio_file)
+            logger.info(f"Extracted audio size: {audio_size_mb:.1f} MB")
+
+            # Step 5: Transcribe audio file
+            logger.info(f"Starting transcription of: {audio_file}")
             logger.info("Processing with word-level timestamps...")
 
-            with open(file_to_transcribe, "rb") as video_file:
+            with open(audio_file, "rb") as audio_file_handle:
                 transcript = self.client.audio.transcriptions.create(
                     model="whisper-1",
-                    file=video_file,
+                    file=audio_file_handle,
                     response_format="verbose_json",
                     timestamp_granularities=["word"],
                 )
@@ -223,16 +207,16 @@ class VideoTranscriber:
 
         except Exception as e:
             logger.error(f"Error during transcription: {e}")
-            # Clean up compressed file if it exists
-            if compressed_file and os.path.exists(compressed_file):
-                os.unlink(compressed_file)
-                logger.info(f"Cleaned up compressed file: {compressed_file}")
+            # Clean up audio file if it exists
+            if audio_file and os.path.exists(audio_file):
+                os.unlink(audio_file)
+                logger.info(f"Cleaned up audio file: {audio_file}")
             raise
         finally:
-            # Clean up compressed file if it exists
-            if compressed_file and os.path.exists(compressed_file):
-                os.unlink(compressed_file)
-                logger.info(f"Cleaned up compressed file: {compressed_file}")
+            # Clean up audio file if it exists
+            if audio_file and os.path.exists(audio_file):
+                os.unlink(audio_file)
+                logger.info(f"Cleaned up audio file: {audio_file}")
 
         # Step 6: Process transcript data
         try:
