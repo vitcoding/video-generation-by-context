@@ -12,7 +12,14 @@ import sys
 from pathlib import Path
 
 sys.path.append(str(Path(__file__).parent.parent))
-from constants import DEFAULT_CFG_SCALE, VIDEO_DURATION
+from constants import (
+    DEFAULT_CFG_SCALE,
+    EARLY_DURATION_RATIO,
+    EARLY_SEGMENT_RATIO,
+    REMAINING_DURATION_RATIO,
+    REMAINING_SEGMENT_RATIO,
+    VIDEO_DURATION,
+)
 
 # System prompts for AI analysis
 SYSTEM_PROMPT_ANALYSIS = """You are an expert video content analyst and cinematic director. Your task is to analyze a Russian audio transcript with word-level timestamps and identify the most important story themes for b-roll video generation.
@@ -48,9 +55,19 @@ Return your analysis in this exact JSON format:
 - DO NOT estimate or approximate - use PRECISE timestamp values from the word-level data
 - Start timestamp must strictly correspond to the word timing data provided
 
+⚠️ DISTRIBUTION STRATEGY - B-ROLL PLACEMENT REQUIREMENTS:
+- Follow the specified distribution pattern for segment placement across video timeline
+- Early segments (approximately 40% of total) should be placed in the first 25% of video duration
+- Remaining segments (approximately 60% of total) should be distributed evenly across the remaining 75% of video duration
+- Early segments should target high-impact themes that hook viewer attention
+- Remaining segments should maintain engagement throughout the video
+- Specific distribution parameters will be provided in the user prompt
+
 Guidelines:
 - Each segment should be exactly 5 seconds long
 - Importance score: 1-3 (low), 4-6 (medium), 7-10 (high)
+- You MUST return the EXACT number of segments requested - this is critical
+- If fewer high-importance themes exist, include medium and low-importance themes to meet the count
 - Image prompts should be detailed and specific for AI image generation
 - Image prompts should focus on characters, people, and visual scenes without any text, letters, or written content
 - Image prompts should avoid any mention of text, signs, labels, or written elements
@@ -76,6 +93,12 @@ Total duration: {duration} seconds
 Target segment duration: {segment_duration} seconds
 Maximum segments to select: {max_segments}
 
+📊 B-ROLL DISTRIBUTION REQUIREMENTS:
+- Early segments: {early_segment_count} segments ({early_segment_percentage}%) in first {early_duration_percentage}% ({early_duration_seconds} seconds)
+- Remaining segments: {remaining_segment_count} segments ({remaining_segment_percentage}%) distributed evenly in remaining {remaining_duration_percentage}% ({remaining_duration_seconds} seconds)
+- Early segments time range: {early_start_time} to {early_end_time} seconds
+- Remaining segments time range: {remaining_start_time} to {remaining_end_time} seconds
+
 Identify the most important story themes and create detailed prompts for both image and video generation. Focus on themes that would benefit most from visual support.
 
 🔴 CRITICALLY IMPORTANT - EXACT START TIME MATCHING:
@@ -85,6 +108,12 @@ Identify the most important story themes and create detailed prompts for both im
 - DO NOT estimate or approximate start_time values - use the exact timestamps from the word data
 - Match your selected text segments to the word timestamps to get precise start_time values
 - If a theme starts before 10.0 seconds, skip it entirely and find other themes that start later
+
+🎯 SEGMENT SELECTION REQUIREMENT:
+- You MUST generate EXACTLY {max_segments} segments - no more, no less
+- If you cannot find enough high-quality themes, lower your importance threshold and include more segments
+- Better to have {max_segments} segments with varying importance than fewer segments
+- Use the full range of importance scores (1-10) to reach the required count
 
 EXAMPLE: If you want to select a segment starting with "Граница между программой", find those exact words in the word timestamps and use the start time of "Граница".
 

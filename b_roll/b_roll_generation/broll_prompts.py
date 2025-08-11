@@ -20,18 +20,40 @@ sys.path.append(str(Path(__file__).parent.parent))
 from config import config
 from constants import (
     AUDIO_TRANSCRIPT_DIR_NAME,
+    BROLL_PROMPTS_DIR,
+    DEFAULT_OPENAI_MODEL,
     DEFAULT_PROMPTS_FILE,
+    FALLBACK_OPENAI_MODEL,
+    MAX_SEGMENTS,
+    OPENAI_MODELS,
+    PREMIUM_OPENAI_MODEL,
     TRANSCRIPTION_JSON_FILENAME,
     VIDEO_DURATION,
     VIDEO_FPS,
     VIDEO_GENERATION_DIR_NAME,
     VIDEO_RESOLUTION,
+    WORKFLOW_PROMPTS_FILENAME,
     base_data_dir,
 )
 from logger_config import logger
 from mock_api import mock_openai_client
 
-from .prompts import SYSTEM_PROMPT_ANALYSIS, USER_PROMPT_TEMPLATE
+sys.path.append(str(Path(__file__).parent))
+from prompts import SYSTEM_PROMPT_ANALYSIS, USER_PROMPT_TEMPLATE
+
+# Try to import tiktoken for token counting
+try:
+    import tiktoken
+
+    TIKTOKEN_AVAILABLE = True
+except ImportError:
+    logger.info("tiktoken library not found. Installing...")
+    import subprocess
+
+    subprocess.check_call(["pip", "install", "tiktoken"])
+    import tiktoken
+
+    TIKTOKEN_AVAILABLE = True
 
 # Try to import OpenAI, install if needed
 if config.is_api_enabled:
@@ -80,7 +102,11 @@ class BRollAnalyzer:
     """Analyzes transcript and generates b-roll insertion points using LLM API."""
 
     def __init__(
-        self, segment_duration: float = VIDEO_DURATION, max_segments: int = 3
+        self,
+        segment_duration: float = VIDEO_DURATION,
+        max_segments: int = 3,
+        early_segment_ratio: float = None,
+        early_duration_ratio: float = None,
     ):
         """
         Initialize the analyzer.
@@ -88,9 +114,34 @@ class BRollAnalyzer:
         Args:
             segment_duration: Duration of each b-roll segment in seconds (default: VIDEO_DURATION)
             max_segments: Maximum number of segments to select (default: 3)
+            early_segment_ratio: Ratio of segments for early portion (default: from constants)
+            early_duration_ratio: Ratio of video duration for early portion (default: from constants)
         """
         self.segment_duration = segment_duration
         self.max_segments = max_segments
+
+        # Import constants here to avoid circular imports
+        import sys
+        from pathlib import Path
+
+        sys.path.append(str(Path(__file__).parent.parent))
+        from constants import EARLY_DURATION_RATIO, EARLY_SEGMENT_RATIO
+
+        # Use provided values or defaults from constants
+        self.early_segment_ratio = (
+            early_segment_ratio
+            if early_segment_ratio is not None
+            else EARLY_SEGMENT_RATIO
+        )
+        self.early_duration_ratio = (
+            early_duration_ratio
+            if early_duration_ratio is not None
+            else EARLY_DURATION_RATIO
+        )
+
+        # Calculate derived values
+        self.remaining_segment_ratio = 1.0 - self.early_segment_ratio
+        self.remaining_duration_ratio = 1.0 - self.early_duration_ratio
 
         # Initialize OpenAI client
         api_key = config.get_api_key("OPENAI_API_KEY")
@@ -106,6 +157,82 @@ class BRollAnalyzer:
             logger.info("🔧 [MOCK] Using mock OpenAI client")
             self.client = OpenAI()
 
+    def count_tokens(self, text: str, model: str = "gpt-4") -> int:
+        """
+        Count tokens in text using tiktoken.
+
+        Args:
+            text: Text to count tokens for
+            model: Model name to get appropriate encoding
+
+        Returns:
+            Number of tokens
+        """
+        if not TIKTOKEN_AVAILABLE:
+            # Fallback estimation: ~4 characters per token
+            return len(text) // 4
+
+        try:
+            # Get encoding for the model
+            if model.startswith("gpt-4"):
+                encoding = tiktoken.encoding_for_model("gpt-4")
+            else:
+                encoding = tiktoken.get_encoding("cl100k_base")
+
+            return len(encoding.encode(text))
+        except Exception as e:
+            logger.info(
+                f"⚠️ Token counting error: {e}, using fallback estimation"
+            )
+            return len(text) // 4
+
+    def select_best_model(self, system_prompt: str, user_prompt: str) -> str:
+        """
+        Select the best OpenAI model based on token count.
+
+        Args:
+            system_prompt: System prompt text
+            user_prompt: User prompt text
+
+        Returns:
+            Model name to use
+        """
+        total_text = system_prompt + user_prompt
+
+        # Try models in order of preference (cost-effective first)
+        models_to_try = [
+            DEFAULT_OPENAI_MODEL,
+            FALLBACK_OPENAI_MODEL,
+            PREMIUM_OPENAI_MODEL,
+        ]
+
+        for model_key in models_to_try:
+            model_info = OPENAI_MODELS[model_key]
+            token_count = self.count_tokens(total_text, model_info["name"])
+
+            # Leave some buffer for response tokens (estimated 2000 tokens)
+            max_input_tokens = model_info["max_context_tokens"] - 2000
+
+            if token_count <= max_input_tokens:
+                if model_key != DEFAULT_OPENAI_MODEL:
+                    logger.info(
+                        f"🔄 Switching to {model_info['name']} due to token limit"
+                    )
+                    logger.info(
+                        f"📊 Token count: {token_count}, Model limit: {model_info['max_context_tokens']}"
+                    )
+                else:
+                    logger.info(
+                        f"✅ Using {model_info['name']} - Token count: {token_count}"
+                    )
+                return model_info["name"]
+
+        # If even the most powerful model can't handle it, use it anyway and let OpenAI handle the error
+        logger.info(
+            f"⚠️ Text too long even for {PREMIUM_OPENAI_MODEL}, trying anyway..."
+        )
+        return OPENAI_MODELS[PREMIUM_OPENAI_MODEL]["name"]
+
     def load_transcript(self, file_path: str) -> Dict[str, Any]:
         """Load transcript JSON file."""
         if not os.path.exists(file_path):
@@ -113,6 +240,57 @@ class BRollAnalyzer:
 
         with open(file_path, "r", encoding="utf-8") as f:
             return json.load(f)
+
+    def _calculate_distribution_parameters(
+        self, total_duration: float
+    ) -> Dict[str, Any]:
+        """
+        Calculate distribution parameters for b-roll placement.
+
+        Args:
+            total_duration: Total video duration in seconds
+
+        Returns:
+            Dictionary with calculated distribution parameters
+        """
+        # Calculate segment counts
+        early_segment_count = max(
+            1, int(self.max_segments * self.early_segment_ratio)
+        )
+        remaining_segment_count = self.max_segments - early_segment_count
+
+        # Calculate duration splits
+        early_duration_seconds = total_duration * self.early_duration_ratio
+        remaining_duration_seconds = (
+            total_duration * self.remaining_duration_ratio
+        )
+
+        # Calculate time ranges (considering minimum start time of 10.0 seconds)
+        min_start_time = 10.0
+        early_start_time = min_start_time
+        early_end_time = max(min_start_time, early_duration_seconds)
+        remaining_start_time = early_end_time
+        remaining_end_time = total_duration
+
+        return {
+            "early_segment_count": early_segment_count,
+            "early_segment_percentage": int(self.early_segment_ratio * 100),
+            "remaining_segment_count": remaining_segment_count,
+            "remaining_segment_percentage": int(
+                self.remaining_segment_ratio * 100
+            ),
+            "early_duration_percentage": int(self.early_duration_ratio * 100),
+            "remaining_duration_percentage": int(
+                self.remaining_duration_ratio * 100
+            ),
+            "early_duration_seconds": round(early_duration_seconds, 1),
+            "remaining_duration_seconds": round(remaining_duration_seconds, 1),
+            "early_start_time": round(early_start_time, 1),
+            "early_end_time": round(early_end_time, 1),
+            "remaining_start_time": round(remaining_start_time, 1),
+            "remaining_end_time": round(remaining_end_time, 1),
+            "total_duration": round(total_duration, 1),
+        }
 
     def analyze_transcript_with_ai(
         self, transcript_data: Dict[str, Any]
@@ -127,12 +305,18 @@ class BRollAnalyzer:
             List of BRollSegment objects with timing, prompts, and importance scores
         """
 
-        system_prompt = SYSTEM_PROMPT_ANALYSIS
-
         # Prepare word timestamps for the prompt
         word_timestamps = self._format_word_timestamps(
             transcript_data.get("words", [])
         )
+
+        # Calculate distribution parameters
+        distribution_params = self._calculate_distribution_parameters(
+            transcript_data["duration"]
+        )
+
+        # Use system prompt as-is (contains JSON structure that shouldn't be formatted)
+        system_prompt = SYSTEM_PROMPT_ANALYSIS
 
         user_prompt = USER_PROMPT_TEMPLATE.format(
             transcript_text=transcript_data["text"],
@@ -140,25 +324,60 @@ class BRollAnalyzer:
             duration=transcript_data["duration"],
             segment_duration=self.segment_duration,
             max_segments=self.max_segments,
+            **distribution_params,
+        )
+
+        # Automatically select the best model based on token count
+        selected_model = self.select_best_model(system_prompt, user_prompt)
+
+        # Find model info for max_tokens
+        model_info = None
+        for model_key, info in OPENAI_MODELS.items():
+            if info["name"] == selected_model:
+                model_info = info
+                break
+
+        max_output_tokens = (
+            model_info["max_output_tokens"] if model_info else 1500
         )
 
         try:
             logger.info("🤖 Analyzing transcript with OpenAI API...")
 
             response = self.client.chat.completions.create(
-                model="gpt-4",
+                model=selected_model,
                 messages=[
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": user_prompt},
                 ],
                 temperature=0.2,
-                max_tokens=1500,
+                max_tokens=min(
+                    max_output_tokens, 8000
+                ),  # Increased for more segments
             )
 
             response_content = response.choices[0].message.content.strip()
 
             # Parse JSON response
             try:
+                # Check if response is wrapped in markdown code block
+                if response_content.startswith("```json"):
+                    # Extract JSON from markdown code block
+                    json_start = response_content.find("```json") + 7
+                    json_end = response_content.rfind("```")
+                    if json_end > json_start:
+                        response_content = response_content[
+                            json_start:json_end
+                        ].strip()
+                elif response_content.startswith("```"):
+                    # Handle generic code block
+                    json_start = response_content.find("```") + 3
+                    json_end = response_content.rfind("```")
+                    if json_end > json_start:
+                        response_content = response_content[
+                            json_start:json_end
+                        ].strip()
+
                 ai_analysis = json.loads(response_content)
             except json.JSONDecodeError as e:
                 logger.info(f"❌ Error parsing AI response: {e}")
@@ -318,7 +537,12 @@ def main():
         Path(__file__).parent.parent
         / f"{base_data_dir}/{VIDEO_GENERATION_DIR_NAME}/{AUDIO_TRANSCRIPT_DIR_NAME}/{TRANSCRIPTION_JSON_FILENAME}"
     )
-    OUTPUT_FILE = str(Path(__file__).parent.parent / DEFAULT_PROMPTS_FILE)
+    OUTPUT_FILE = str(Path(BROLL_PROMPTS_DIR) / WORKFLOW_PROMPTS_FILENAME)
+
+    output_dir = Path(OUTPUT_FILE).parent
+    output_dir.mkdir(parents=True, exist_ok=True)
+    logger.info(f"📁 Output directory: {output_dir}")
+    logger.info(f"📄 Output file: {OUTPUT_FILE}")
 
     # Check for API key
     if not os.getenv("OPENAI_API_KEY"):
@@ -330,7 +554,9 @@ def main():
         return
 
     # Initialize analyzer with custom parameters
-    analyzer = BRollAnalyzer(segment_duration=VIDEO_DURATION, max_segments=3)
+    analyzer = BRollAnalyzer(
+        segment_duration=VIDEO_DURATION, max_segments=MAX_SEGMENTS
+    )
 
     try:
         # Load transcript

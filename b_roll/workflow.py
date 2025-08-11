@@ -111,6 +111,8 @@ class UnifiedWorkflow:
         max_segments: int = 3,
         start_stage: str = "transcription",
         skip_video_generation: bool = False,
+        early_segment_ratio: float = None,
+        early_duration_ratio: float = None,
     ):
         """
         Initialize the unified workflow with all components.
@@ -119,10 +121,15 @@ class UnifiedWorkflow:
             max_segments: Maximum number of segments to generate (default: 3)
             start_stage: Stage to start from ('transcription' or 'analysis')
             skip_video_generation: Skip video generation and final video editing (default: False)
+            early_segment_ratio: Ratio of segments for early portion (default: from constants)
+            early_duration_ratio: Ratio of video duration for early portion (default: from constants)
         """
         self.video_transcriber = VideoTranscriber()
         self.broll_analyzer = BRollAnalyzer(
-            segment_duration=VIDEO_DURATION, max_segments=max_segments
+            segment_duration=VIDEO_DURATION,
+            max_segments=max_segments,
+            early_segment_ratio=early_segment_ratio,
+            early_duration_ratio=early_duration_ratio,
         )
         self.image_generator = ImageGenerator()
         self.video_generator = KlingImageToVideoGenerator()
