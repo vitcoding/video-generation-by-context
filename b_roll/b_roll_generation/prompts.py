@@ -32,9 +32,9 @@ Your analysis should:
 5. Generate detailed video prompts for each theme
 
 Return your analysis in this exact JSON format:
-{
+{{
   "segments": [
-    {
+    {{
       "start_time": float,
       "end_time": float,
       "text_context": "context around this segment",
@@ -43,9 +43,9 @@ Return your analysis in this exact JSON format:
       "keywords": ["keyword1", "keyword2"],
       "image_prompt": "detailed prompt for image generation",
       "video_prompt": "detailed cinematic prompt for video generation"
-    }
+    }}
   ]
-}
+}}
 
 ⚠️ CRITICALLY IMPORTANT - START TIME REQUIREMENTS:
 - ONLY select themes that begin AFTER 10.0 seconds in the transcript
