@@ -14,7 +14,7 @@ from typing import Dict, List, Optional
 
 from dotenv import load_dotenv
 
-# Добавляем путь для импорта констант и логера
+# Adding a path for importing constants and logger
 sys.path.append(str(Path(__file__).parent.parent))
 import mock_api
 from config import config
@@ -67,6 +67,9 @@ class VideoTranscriber:
             logger.info("🔧 [MOCK] Using mock OpenAI client")
             self.client = OpenAI()
 
+        # OpenAI API file size limit (25 MB)
+        self.max_file_size_mb = 25
+
     def _get_file_size_mb(self, file_path: str) -> float:
         """Get file size in megabytes"""
         return os.path.getsize(file_path) / (1024 * 1024)
@@ -99,7 +102,7 @@ class VideoTranscriber:
             )
 
         try:
-            # Use ffmpeg to extract audio with optimal settings for transcription
+            # Use ffmpeg to extract audio with optimized settings for smaller file size
             cmd = [
                 "ffmpeg",
                 "-i",
@@ -108,9 +111,9 @@ class VideoTranscriber:
                 "-acodec",
                 "libmp3lame",  # MP3 codec
                 "-ab",
-                "192k",  # 192kbps audio bitrate (good quality for transcription)
+                "64k",  # Reduced bitrate to 64kbps (sufficient for speech)
                 "-ar",
-                "22050",  # 22kHz sample rate (good balance of quality and size)
+                "16000",  # Reduced sample rate to 16kHz (standard for speech)
                 "-ac",
                 "1",  # Mono audio (sufficient for transcription)
                 "-y",  # Overwrite output file
@@ -132,6 +135,27 @@ class VideoTranscriber:
             audio_size = self._get_file_size_mb(temp_path)
             logger.info(f"Extracted audio size: {audio_size:.1f} MB")
 
+            # Check if audio file exceeds OpenAI API limit
+            if audio_size > self.max_file_size_mb:
+                logger.warning(
+                    f"⚠️ Audio file size ({audio_size:.1f} MB) exceeds OpenAI API limit ({self.max_file_size_mb} MB)"
+                )
+                # Try to reduce quality further
+                temp_path_compressed = self._compress_audio_further(temp_path)
+                if temp_path_compressed:
+                    # Clean up original temp file
+                    os.unlink(temp_path)
+                    temp_path = temp_path_compressed
+                    audio_size = self._get_file_size_mb(temp_path)
+                    logger.info(f"Compressed audio size: {audio_size:.1f} MB")
+
+                    if audio_size > self.max_file_size_mb:
+                        raise Exception(
+                            f"Audio file is still too large ({audio_size:.1f} MB) after compression. "
+                            f"Maximum allowed size is {self.max_file_size_mb} MB. "
+                            f"Consider using a shorter video or splitting it into segments."
+                        )
+
             return temp_path
 
         except subprocess.CalledProcessError as e:
@@ -148,10 +172,65 @@ class VideoTranscriber:
                 os.unlink(temp_path)
             raise e
 
+    def _compress_audio_further(self, audio_path: str) -> Optional[str]:
+        """
+        Further compress audio file if it's too large for OpenAI API
+
+        Args:
+            audio_path: Path to audio file to compress
+
+        Returns:
+            Optional[str]: Path to compressed audio file, or None if compression failed
+        """
+        try:
+            # Create new temporary file for compressed audio
+            temp_fd, compressed_path = tempfile.mkstemp(
+                suffix=".mp3", prefix="audio_compressed_"
+            )
+            os.close(temp_fd)
+
+            # Use even more aggressive compression settings
+            cmd = [
+                "ffmpeg",
+                "-i",
+                audio_path,
+                "-acodec",
+                "libmp3lame",
+                "-ab",
+                "32k",  # Very low bitrate (32kbps)
+                "-ar",
+                "8000",  # Very low sample rate (8kHz - minimum for speech)
+                "-ac",
+                "1",  # Mono
+                "-y",  # Overwrite output file
+                compressed_path,
+            ]
+
+            logger.info(
+                "Applying additional compression to reduce file size..."
+            )
+            result = subprocess.run(
+                cmd, capture_output=True, text=True, check=True
+            )
+
+            compressed_size = self._get_file_size_mb(compressed_path)
+            logger.info(
+                f"Further compressed audio size: {compressed_size:.1f} MB"
+            )
+
+            return compressed_path
+
+        except Exception as e:
+            logger.error(f"Additional compression failed: {e}")
+            if os.path.exists(compressed_path):
+                os.unlink(compressed_path)
+            return None
+
     def transcribe_video_to_json(
         self,
         video_file_path: str,
         output_json_path: Optional[str] = None,
+        language: Optional[str] = None,
     ) -> str:
         """
         Transcribe video file with word-level timestamps and save to JSON.
@@ -159,6 +238,7 @@ class VideoTranscriber:
         Args:
             video_file_path: Path to input video file
             output_json_path: Path to save JSON transcription (optional, uses default if not provided)
+            language: Language code for transcription (e.g., 'ru', 'en', 'es'). If None, auto-detects language.
 
         Returns:
             str: Path to the saved JSON transcription file
@@ -201,6 +281,7 @@ class VideoTranscriber:
                     file=audio_file_handle,
                     response_format="verbose_json",
                     timestamp_granularities=["word"],
+                    language=language,
                 )
 
             logger.info("Transcription completed successfully")
@@ -360,6 +441,7 @@ def transcribe_video_to_json(
     video_file_path: str,
     output_json_path: Optional[str] = None,
     api_key: Optional[str] = None,
+    language: Optional[str] = None,
 ) -> str:
     """
     Transcribe video file with word-level timestamps and save to JSON.
@@ -368,24 +450,56 @@ def transcribe_video_to_json(
         video_file_path: Path to input video file
         output_json_path: Path to save JSON transcription (optional, uses default if not provided)
         api_key: OpenAI API key (optional, will use env if not provided)
+        language: Language code for transcription (e.g., 'ru', 'en', 'es'). If None, auto-detects language.
 
     Returns:
         str: Path to the saved JSON transcription file
     """
     transcriber = VideoTranscriber(api_key=api_key)
     return transcriber.transcribe_video_to_json(
-        video_file_path, output_json_path
+        video_file_path, output_json_path, language
     )
 
 
 if __name__ == "__main__":
     # Example usage
-    VIDEO_FILE_PATH = f"b_roll/{base_data_dir}/{VIDEO_GENERATION_DIR_NAME}/{INPUT_VIDEO_DIR_NAME}/{DEFAULT_VIDEO_FILENAME}"
+    # VIDEO_FILE_PATH = f"b_roll/{base_data_dir}/{VIDEO_GENERATION_DIR_NAME}/{INPUT_VIDEO_DIR_NAME}/{DEFAULT_VIDEO_FILENAME}"
+    VIDEO_FILE_PATH = f"b_roll/{base_data_dir}/{VIDEO_GENERATION_DIR_NAME}/{INPUT_VIDEO_DIR_NAME}/extracted_audio.mp3"
+
+    # Language configuration
+    # Supported languages: 'ru' (Russian), 'en' (English), 'es' (Spanish), 'fr' (French), 'de' (German), etc.
+    # Set to None for auto-detection
+    TRANSCRIPTION_LANGUAGE = (
+        # None,  # Change this to specify language, e.g., 'ru' for Russian
+        "ru",
+    )
+
+    # Check for command line arguments
+    if len(sys.argv) > 1:
+        # First argument can be video file path
+        VIDEO_FILE_PATH = sys.argv[1]
+
+    if len(sys.argv) > 2:
+        # Second argument can be language code
+        TRANSCRIPTION_LANGUAGE = sys.argv[2]
+        if TRANSCRIPTION_LANGUAGE.lower() == "auto":
+            TRANSCRIPTION_LANGUAGE = None
 
     try:
+        # Log configuration
+        logger.info(f"Video file: {VIDEO_FILE_PATH}")
+        logger.info(f"Language: {TRANSCRIPTION_LANGUAGE or 'auto-detect'}")
+
         # Transcribe video with word-level timestamps
-        result_path = transcribe_video_to_json(video_file_path=VIDEO_FILE_PATH)
+        result_path = transcribe_video_to_json(
+            video_file_path=VIDEO_FILE_PATH, language=TRANSCRIPTION_LANGUAGE
+        )
         logger.info(f"Transcription saved at: {result_path}")
 
     except Exception as e:
         logger.error(f"Failed to transcribe video: {e}")
+        logger.info(
+            "Usage: python word_level_transcriber.py [video_file_path] [language_code]"
+        )
+        logger.info("Example: python word_level_transcriber.py video.mp4 ru")
+        logger.info("Example: python word_level_transcriber.py video.mp4 auto")
