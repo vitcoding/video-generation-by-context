@@ -36,37 +36,8 @@ DEFAULT_NUM_INFERENCE_STEPS = (
     # 20  # Default number of inference steps for image generation
 )
 
-# OpenAI models configuration
-OPENAI_MODELS = {
-    "gpt-4": {
-        "name": "gpt-4",
-        "max_context_tokens": 8192,
-        "max_output_tokens": 4096,
-        "cost_per_1k_input": 0.03,
-        "cost_per_1k_output": 0.06,
-    },
-    "gpt-4o-mini": {
-        "name": "gpt-4o-mini",
-        "max_context_tokens": 128000,
-        "max_output_tokens": 16384,
-        "cost_per_1k_input": 0.00015,
-        "cost_per_1k_output": 0.0006,
-    },
-    "gpt-4o": {
-        "name": "gpt-4o",
-        "max_context_tokens": 128000,
-        "max_output_tokens": 16384,
-        "cost_per_1k_input": 0.0025,
-        "cost_per_1k_output": 0.01,
-    },
-}
-
-# Default models for different tasks
-DEFAULT_OPENAI_MODEL = "gpt-4"
-FALLBACK_OPENAI_MODEL = (
-    "gpt-4o-mini"  # Модель с большим контекстом для длинных промптов
-)
-PREMIUM_OPENAI_MODEL = "gpt-4o"  # Самая мощная модель
+# OpenAI model configuration
+OPENAI_MODEL = "gpt-4.1-mini"
 
 # Workflow configuration
 # ENABLE_VIDEO_GENERATION = True  # Flag to enable/disable video generation

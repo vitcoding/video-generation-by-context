@@ -113,6 +113,9 @@ class UnifiedWorkflow:
         skip_video_generation: bool = False,
         early_segment_ratio: float = None,
         early_duration_ratio: float = None,
+        token_threshold: int = 7000,
+        target_tokens_per_chunk: int = 4000,
+        min_chunk_start_time: float = 10.0,
     ):
         """
         Initialize the unified workflow with all components.
@@ -123,6 +126,9 @@ class UnifiedWorkflow:
             skip_video_generation: Skip video generation and final video editing (default: False)
             early_segment_ratio: Ratio of segments for early portion (default: from constants)
             early_duration_ratio: Ratio of video duration for early portion (default: from constants)
+            token_threshold: Max total tokens before applying chunking strategy
+            target_tokens_per_chunk: Target max tokens per chunk for safe prompts
+            min_chunk_start_time: Seconds to skip at start when creating chunks (set 0 to disable)
         """
         self.video_transcriber = VideoTranscriber()
         self.broll_analyzer = BRollAnalyzer(
@@ -130,6 +136,9 @@ class UnifiedWorkflow:
             max_segments=max_segments,
             early_segment_ratio=early_segment_ratio,
             early_duration_ratio=early_duration_ratio,
+            token_threshold=token_threshold,
+            target_tokens_per_chunk=target_tokens_per_chunk,
+            min_chunk_start_time=min_chunk_start_time,
         )
         self.image_generator = ImageGenerator()
         self.video_generator = KlingImageToVideoGenerator()

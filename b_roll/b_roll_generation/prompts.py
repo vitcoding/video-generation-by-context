@@ -56,18 +56,10 @@ Return your analysis in this exact JSON format:
 - Start timestamp must strictly correspond to the word timing data provided
 
 ⚠️ DISTRIBUTION STRATEGY - B-ROLL PLACEMENT REQUIREMENTS:
-- Follow the specified distribution pattern for segment placement across video timeline
-- Early segments (approximately 40% of total) should be placed in the first 25% of video duration
-- Remaining segments (approximately 60% of total) should be distributed evenly across the remaining 75% of video duration
-- Early segments should target high-impact themes that hook viewer attention
-- Remaining segments should maintain engagement throughout the video
+- Make full use of the requirements from the user's request
 - Specific distribution parameters will be provided in the user prompt
 
 Guidelines:
-- Each segment should be exactly 5 seconds long
-- Importance score: 1-3 (low), 4-6 (medium), 7-10 (high)
-- You MUST return the EXACT number of segments requested - this is critical
-- If fewer high-importance themes exist, include medium and low-importance themes to meet the count
 - Image prompts should be detailed and specific for AI image generation
 - Image prompts should focus on characters, people, and visual scenes without any text, letters, or written content
 - Image prompts should avoid any mention of text, signs, labels, or written elements
@@ -93,14 +85,6 @@ Total duration: {duration} seconds
 Target segment duration: {segment_duration} seconds
 Maximum segments to select: {max_segments}
 
-📊 B-ROLL DISTRIBUTION REQUIREMENTS:
-- Early segments: {early_segment_count} segments ({early_segment_percentage}%) in first {early_duration_percentage}% ({early_duration_seconds} seconds)
-- Remaining segments: {remaining_segment_count} segments ({remaining_segment_percentage}%) distributed evenly in remaining {remaining_duration_percentage}% ({remaining_duration_seconds} seconds)
-- Early segments time range: {early_start_time} to {early_end_time} seconds
-- Remaining segments time range: {remaining_start_time} to {remaining_end_time} seconds
-
-Identify the most important story themes and create detailed prompts for both image and video generation. Focus on themes that would benefit most from visual support.
-
 🔴 CRITICALLY IMPORTANT - EXACT START TIME MATCHING:
 - ONLY analyze and select themes that begin AFTER 10.0 seconds in the transcript
 - start_time must be EXACTLY taken from the word timestamps provided above
@@ -121,7 +105,8 @@ ADDITIONAL REQUIREMENTS:
 - For image prompts, avoid any text, letters, signs, or written content. Focus on visual scenes, people, objects, and environments without any textual elements.
 - Use precise timestamps that align with the word-level timing data provided.
 
-Return only the JSON response with segments sorted by importance_score (highest first).
+🔴 CRITICALLY IMPORTANT - RETURN ONLY JSON RESPONSE:
+- Return only the JSON response with segments sorted by importance_score (highest first).
 """
 
 # Negative prompts for image generation
