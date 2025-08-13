@@ -15,6 +15,6 @@ from b_roll.b_roll_generation.word_level_transcriber import (
 if __name__ == "__main__":
     # word_level_transcriber_main()
     # broll_prompts_main()
-    broll_image_generation_main(segment_ids=[2])
-    # kling_image_to_video_main()
+    # broll_image_generation_main(segment_ids=[12])
+    kling_image_to_video_main(segment_ids=[1])
     # video_editing_cloudinary_main()

@@ -384,6 +384,7 @@ class KlingImageToVideoGenerator:
         prompts_data: Dict,
         images_dir: str = None,
         aspect_ratio: str = IMAGE_ASPECT_RATIO,
+        selected_segment_ids: Optional[List[int]] = None,
     ) -> List[Dict]:
         # Use default images directory if not specified
         if images_dir is None:
@@ -399,12 +400,13 @@ class KlingImageToVideoGenerator:
                 / f"{base_data_dir}/{VIDEO_GENERATION_DIR_NAME}/{IMAGES_INPUT_DIR_NAME}"
             )
         """
-        Generate videos for all b-roll segments
+        Generate videos for all or selected b-roll segments
 
         Args:
             prompts_data: Dictionary with b-roll prompts data
             images_dir: Directory containing generated images
             aspect_ratio: Video aspect ratio (default: IMAGE_ASPECT_RATIO)
+            selected_segment_ids: Optional list of segment_id values to generate only specific segments
 
         Returns:
             List of dictionaries with generation results
@@ -415,6 +417,25 @@ class KlingImageToVideoGenerator:
         if not segments:
             logger.error("❌ No b-roll segments found in prompts data")
             return results
+
+        # Filter by requested IDs if provided
+        if selected_segment_ids:
+            try:
+                id_set = {int(x) for x in selected_segment_ids}
+            except Exception:
+                id_set = set()
+            original_count = len(segments)
+            segments = [
+                s for s in segments if int(s.get("segment_id", 0)) in id_set
+            ]
+            logger.info(
+                f"📌 Filtering to segment_ids {sorted(id_set)}: {len(segments)}/{original_count} segments"
+            )
+            if not segments:
+                logger.error(
+                    "❌ No matching segments found for the requested IDs"
+                )
+                return results
 
         logger.info(
             f"🎬 Generating videos for {len(segments)} b-roll segments..."
@@ -451,18 +472,36 @@ class KlingImageToVideoGenerator:
             # Generate image filename based on segment info
             segment_id = segment.get("segment_id", i)
             start_time = segment.get("start_time", 0)
-            # Convert IMAGE_ASPECT_RATIO to filename format
-            aspect_ratio_filename = IMAGE_ASPECT_RATIO.replace(":", "x")
-            image_filename = f"broll_segment_{segment_id:02d}_{start_time:.1f}s_{aspect_ratio_filename}.png"
+            end_time = segment.get(
+                "end_time", (start_time or 0) + VIDEO_DURATION
+            )
+            image_filename = f"segment_{segment_id:02d}_{start_time:.1f}s_{end_time:.1f}s.png"
             image_path = os.path.join(images_dir, image_filename)
 
             # Check if image exists
             if not os.path.exists(image_path):
                 logger.error(f"❌ Image not found: {image_path}")
+                results.append(
+                    {
+                        "error": "Image not found",
+                        "download_success": False,
+                        "local_filename": None,
+                        "segment_info": {
+                            "segment_id": segment.get("segment_id"),
+                            "start_time": segment.get("start_time"),
+                            "end_time": segment.get("end_time"),
+                            "text_context": segment.get("text_context", ""),
+                            "keywords": segment.get("keywords", []),
+                            "importance_score": segment.get(
+                                "importance_score", 0
+                            ),
+                        },
+                    }
+                )
                 continue
 
             # Generate video filename
-            video_filename = f"broll_segment_{segment_id:02d}_{start_time:.1f}s_{aspect_ratio_filename}.mp4"
+            video_filename = f"segment_{segment_id:02d}_{start_time:.1f}s_{end_time:.1f}s_video.mp4"
 
             # Generate video
             video_result = self.generate_video_from_image(
@@ -579,9 +618,15 @@ class KlingImageToVideoGenerator:
         logger.info(f"📊 Report saved to: {report_file}")
 
 
-def test_kling_image_to_video():
+def test_kling_image_to_video(
+    selected_segment_ids: Optional[List[int]] = None,
+):
     """
     Test Kling 1.6 Pro Image-to-Video generation with b-roll prompts
+    Can optionally target selected segments.
+
+    Args:
+        selected_segment_ids: Optional list of segment_id values to generate only specific segments
     """
     logger.info("🧪 Testing Kling 1.6 Pro Image-to-Video Generator")
     logger.info("=" * 60)
@@ -598,7 +643,9 @@ def test_kling_image_to_video():
 
         # Generate videos for all segments
         results = generator.generate_videos_for_broll_segments(
-            prompts_data, aspect_ratio=IMAGE_ASPECT_RATIO
+            prompts_data,
+            aspect_ratio=IMAGE_ASPECT_RATIO,
+            selected_segment_ids=selected_segment_ids,
         )
 
         # Summary
@@ -641,6 +688,7 @@ def generate_broll_videos(
     prompts_file: str = None,
     images_dir: str = None,
     aspect_ratio: str = IMAGE_ASPECT_RATIO,
+    selected_segment_ids: Optional[List[int]] = None,
 ) -> bool:
     # Use default paths if not specified
     if prompts_file is None:
@@ -668,12 +716,13 @@ def generate_broll_videos(
             / f"{base_data_dir}/{VIDEO_GENERATION_DIR_NAME}/{IMAGES_INPUT_DIR_NAME}"
         )
     """
-    Generate videos for all b-roll segments from prompts file
+    Generate videos for b-roll segments from prompts file. Can optionally target selected segments.
 
     Args:
         prompts_file: Path to the prompts JSON file
         images_dir: Directory containing generated images
         aspect_ratio: Video aspect ratio (default: IMAGE_ASPECT_RATIO)
+        selected_segment_ids: Optional list of segment_id values to generate only specific segments
 
     Returns:
         True if generation successful, False otherwise
@@ -693,7 +742,10 @@ def generate_broll_videos(
 
         # Generate videos for all segments
         results = generator.generate_videos_for_broll_segments(
-            prompts_data, images_dir, aspect_ratio
+            prompts_data,
+            images_dir,
+            aspect_ratio,
+            selected_segment_ids=selected_segment_ids,
         )
 
         # Summary
@@ -731,9 +783,9 @@ def generate_broll_videos(
         return False
 
 
-def main():
-    """Run the image-to-video test"""
-    success = test_kling_image_to_video()
+def main(segment_ids: Optional[List[int]] = None):
+    """Run the image-to-video test with optional selection by segment IDs."""
+    success = test_kling_image_to_video(selected_segment_ids=segment_ids)
 
     if success:
         logger.info(
@@ -746,4 +798,39 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    # Optional CLI: --ids "1,3,5" or --ids 1 3 5
+    import argparse
+
+    parser = argparse.ArgumentParser(
+        description="Kling image-to-video generation"
+    )
+    parser.add_argument(
+        "--ids",
+        "--segments",
+        dest="ids",
+        type=str,
+        nargs="*",
+        help=(
+            "Segment IDs to generate. Accepts space or comma separated values. "
+            "Examples: --ids 1 3 5  or  --ids 1,3,5"
+        ),
+    )
+    args = parser.parse_args()
+
+    parsed_ids: Optional[List[int]] = None
+    if args.ids:
+        tokens: List[str] = []
+        # Support both space-separated and comma-separated inputs
+        for token in args.ids:
+            if "," in token:
+                tokens.extend([t for t in token.split(",") if t])
+            else:
+                tokens.append(token)
+        parsed_ids = []
+        for t in tokens:
+            try:
+                parsed_ids.append(int(t))
+            except ValueError:
+                pass
+
+    main(segment_ids=parsed_ids)
