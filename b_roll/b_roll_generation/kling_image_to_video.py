@@ -22,6 +22,7 @@ try:
     from .. import mock_api
     from ..config import config
     from ..constants import (
+        BROLL_PROMPTS_DIR,
         BROLL_PROMPTS_DIR_NAME,
         DEFAULT_CFG_SCALE,
         DEFAULT_VIDEOS_OUTPUT_DIR,
@@ -50,6 +51,7 @@ except ImportError:
     )
     from b_roll.config import config
     from b_roll.constants import (
+        BROLL_PROMPTS_DIR,
         BROLL_PROMPTS_DIR_NAME,
         DEFAULT_CFG_SCALE,
         DEFAULT_VIDEOS_OUTPUT_DIR,
@@ -157,6 +159,120 @@ class KlingImageToVideoGenerator:
             logger.error(f"❌ Error loading prompts: {e}")
             return {}
 
+    def load_global_style(self) -> Dict:
+        """
+        Load optional global style JSON from b-roll prompts directory.
+        """
+        try:
+            style_path = Path(BROLL_PROMPTS_DIR) / "global_style.json"
+            if not style_path.is_absolute():
+                project_root = Path(__file__).parents[2]
+                style_path = (project_root / style_path).resolve()
+            if style_path.exists():
+                with open(style_path, "r", encoding="utf-8") as f:
+                    return json.load(f)
+        except Exception:
+            pass
+        return {}
+
+    def compose_video_prompt(self, base_prompt: str, style: Dict) -> str:
+        """
+        Merge base video prompt with global style fields.
+        """
+        if not style:
+            return base_prompt
+
+        tokens: List[str] = []
+        prefix = str(
+            style.get("video_prefix", style.get("prefix", ""))
+        ).strip()
+        if prefix:
+            tokens.append(prefix)
+
+        if base_prompt:
+            tokens.append(base_prompt.strip())
+
+        def add_list(name: str) -> None:
+            vals = style.get(name)
+            if isinstance(vals, list) and vals:
+                tokens.append(", ".join([str(v) for v in vals]))
+
+        # Reuse same style lists
+        add_list("style_tags")
+        add_list("camera")
+        add_list("lighting")
+        add_list("color_palette")
+
+        # Conditionally enforce human demographics when people are present
+        combined_so_far = ". ".join([t for t in tokens if t])
+        demographics = str(
+            style.get("human_demographics", "Caucasian, middle-aged adults")
+        ).strip()
+        if demographics:
+            lower_text = combined_so_far.lower()
+            conflicting_terms = [
+                "asian",
+                "african",
+                "black",
+                "latino",
+                "hispanic",
+                "indian",
+                "arab",
+                "elderly",
+                "senior",
+                "young",
+                "teen",
+                "child",
+                "middle-aged",
+                "caucasian",
+                "white",
+            ]
+
+            # Lightweight person detection
+            def _contains_humans(text: str) -> bool:
+                t = text.lower()
+                for k in [
+                    "person",
+                    "people",
+                    "man",
+                    "woman",
+                    "men",
+                    "women",
+                    "adult",
+                    "team",
+                    "group",
+                    "crowd",
+                    "colleague",
+                    "coworker",
+                    "employees",
+                    "worker",
+                    "business team",
+                    "audience",
+                    "speaker",
+                    "meeting",
+                    "office team",
+                    "portrait",
+                    "headshot",
+                    "couple",
+                    "family",
+                ]:
+                    if k in t:
+                        return True
+                return False
+
+            if _contains_humans(combined_so_far) and not any(
+                term in lower_text for term in conflicting_terms
+            ):
+                tokens.append(demographics)
+
+        suffix = str(
+            style.get("video_suffix", style.get("suffix", ""))
+        ).strip()
+        if suffix:
+            tokens.append(suffix)
+
+        return ". ".join([t for t in tokens if t])
+
     def upload_image(self, image_path: str) -> str:
         """
         Upload image to fal.ai storage and return URL
@@ -195,6 +311,7 @@ class KlingImageToVideoGenerator:
         aspect_ratio: str = IMAGE_ASPECT_RATIO,
         fps: int = VIDEO_FPS,
         resolution: str = VIDEO_RESOLUTION,
+        negative_prompt: Optional[str] = None,
     ) -> Optional[Dict]:
         """
         Generate video from image using Kling 1.6 Pro
@@ -205,6 +322,7 @@ class KlingImageToVideoGenerator:
             aspect_ratio: Video aspect ratio (16:9, 9:16, 1:1)
             fps: Frames per second for video generation
             resolution: Video resolution (e.g., "720x1280")
+            negative_prompt: Optional override for negative prompt
 
         Returns:
             Dictionary with video information or None if failed
@@ -232,7 +350,9 @@ class KlingImageToVideoGenerator:
                     "aspect_ratio": aspect_ratio,
                     "fps": fps,
                     "resolution": resolution,
-                    "negative_prompt": NEGATIVE_PROMPT_VIDEO,
+                    "negative_prompt": (
+                        negative_prompt or NEGATIVE_PROMPT_VIDEO
+                    ),
                     "cfg_scale": DEFAULT_CFG_SCALE,
                 },
             )
@@ -300,6 +420,18 @@ class KlingImageToVideoGenerator:
             f"🎬 Generating videos for {len(segments)} b-roll segments..."
         )
 
+        # Load optional global style once
+        global_style = self.load_global_style()
+        style_negative = (
+            (
+                global_style.get("video_negative")
+                or global_style.get("negative")
+                or ""
+            ).strip()
+            if global_style
+            else ""
+        )
+
         for i, segment in enumerate(segments, 1):
             logger.info(f"\n{'='*40}")
             logger.info(f"🎬 SEGMENT {i}: {segment.get('segment_id', i)}")
@@ -310,6 +442,11 @@ class KlingImageToVideoGenerator:
             if not video_prompt:
                 logger.error(f"❌ No video prompt found for segment {i}")
                 continue
+
+            # Apply global style
+            final_video_prompt = self.compose_video_prompt(
+                video_prompt, global_style
+            )
 
             # Generate image filename based on segment info
             segment_id = segment.get("segment_id", i)
@@ -330,10 +467,11 @@ class KlingImageToVideoGenerator:
             # Generate video
             video_result = self.generate_video_from_image(
                 image_path=image_path,
-                prompt=video_prompt,
+                prompt=final_video_prompt,
                 aspect_ratio=aspect_ratio,
                 fps=VIDEO_FPS,
                 resolution=VIDEO_RESOLUTION,
+                negative_prompt=style_negative,
             )
 
             if video_result:

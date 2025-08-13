@@ -59,6 +59,8 @@ Obey these rules:
   - Dynamic (avoid static scenes). Keep concise (<= 300 characters).
 - Keywords:
   - 5–8 lowercase English nouns, single words, no verbs or phrases.
+- People depiction policy:
+  - If people are depicted, default to "Caucasian, middle-aged adults" unless an explicit demographic or age is already specified by the scene context. Do not contradict explicit context.
 - Output:
   - Return ONLY valid JSON, no markdown, no comments.
   - Exactly the number of segments specified by the user.

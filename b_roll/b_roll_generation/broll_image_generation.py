@@ -22,6 +22,7 @@ try:
     from .. import mock_api
     from ..config import config
     from ..constants import (
+        BROLL_PROMPTS_DIR,
         DEFAULT_IMAGES_OUTPUT_DIR,
         DEFAULT_NUM_INFERENCE_STEPS,
         DEFAULT_SEED,
@@ -29,6 +30,7 @@ try:
         FAL_MODEL_ENDPOINT,
         IMAGE_ASPECT_RATIO,
         PROJECT_ROOT_RELATIVE_PATH,
+        VIDEO_DURATION,
         WORKFLOW_PROMPTS_PATH,
     )
     from ..logger_config import logger
@@ -43,6 +45,7 @@ except ImportError:
     from b_roll.b_roll_generation.prompts import NEGATIVE_PROMPT_IMAGE
     from b_roll.config import config
     from b_roll.constants import (
+        BROLL_PROMPTS_DIR,
         DEFAULT_IMAGES_OUTPUT_DIR,
         DEFAULT_NUM_INFERENCE_STEPS,
         DEFAULT_SEED,
@@ -50,6 +53,7 @@ except ImportError:
         FAL_MODEL_ENDPOINT,
         IMAGE_ASPECT_RATIO,
         PROJECT_ROOT_RELATIVE_PATH,
+        VIDEO_DURATION,
         WORKFLOW_PROMPTS_PATH,
     )
     from b_roll.logger_config import logger
@@ -103,6 +107,38 @@ class ImageGenerator:
         self.output_dir = Path(DEFAULT_IMAGES_OUTPUT_DIR)
         self.output_dir.mkdir(exist_ok=True)
 
+    def _contains_humans(self, text: str) -> bool:
+        """Heuristic check whether the prompt likely includes people."""
+        if not text:
+            return False
+        t = text.lower()
+        human_keywords = [
+            "person",
+            "people",
+            "man",
+            "woman",
+            "men",
+            "women",
+            "adult",
+            "team",
+            "group",
+            "crowd",
+            "colleague",
+            "coworker",
+            "employees",
+            "worker",
+            "business team",
+            "audience",
+            "speaker",
+            "meeting",
+            "office team",
+            "portrait",
+            "headshot",
+            "couple",
+            "family",
+        ]
+        return any(k in t for k in human_keywords)
+
     def load_broll_prompts(
         self,
         prompts_file: str = WORKFLOW_PROMPTS_PATH,
@@ -138,6 +174,79 @@ class ImageGenerator:
             logger.info(f"❌ Error loading prompts: {e}")
             return {}
 
+    def load_global_style(self) -> Dict:
+        """
+        Load optional global style JSON from b-roll prompts directory.
+        """
+        try:
+            style_path = Path(BROLL_PROMPTS_DIR) / "global_style.json"
+            if style_path.exists():
+                with open(style_path, "r", encoding="utf-8") as f:
+                    return json.load(f)
+        except Exception:
+            pass
+        return {}
+
+    def compose_prompt(self, base_prompt: str, style: Dict) -> str:
+        """
+        Merge base image prompt with global style fields.
+        """
+        if not style:
+            return base_prompt
+
+        tokens: List[str] = []
+        prefix = str(style.get("prefix", "")).strip()
+        if prefix:
+            tokens.append(prefix)
+
+        if base_prompt:
+            tokens.append(base_prompt.strip())
+
+        def add_list(name: str) -> None:
+            vals = style.get(name)
+            if isinstance(vals, list) and vals:
+                tokens.append(", ".join([str(v) for v in vals]))
+
+        add_list("style_tags")
+        add_list("camera")
+        add_list("lighting")
+        add_list("color_palette")
+
+        # Conditionally enforce human demographics when people are present
+        combined_so_far = ". ".join([t for t in tokens if t])
+        demographics = str(
+            style.get("human_demographics", "Caucasian, middle-aged adults")
+        ).strip()
+        if demographics:
+            lower_text = combined_so_far.lower()
+            conflicting_terms = [
+                "asian",
+                "african",
+                "black",
+                "latino",
+                "hispanic",
+                "indian",
+                "arab",
+                "elderly",
+                "senior",
+                "young",
+                "teen",
+                "child",
+                "middle-aged",
+                "caucasian",
+                "white",
+            ]
+            if self._contains_humans(combined_so_far) and not any(
+                term in lower_text for term in conflicting_terms
+            ):
+                tokens.append(demographics)
+
+        suffix = str(style.get("suffix", "")).strip()
+        if suffix:
+            tokens.append(suffix)
+
+        return ". ".join([t for t in tokens if t])
+
     def generate_images_for_broll_segments(
         self, prompts_data: Dict, aspect_ratio: str = IMAGE_ASPECT_RATIO
     ) -> List[Dict]:
@@ -162,6 +271,14 @@ class ImageGenerator:
             f"🎨 Generating images for {len(segments)} b-roll segments..."
         )
 
+        # Load optional global style once
+        global_style = self.load_global_style()
+        style_negative = (
+            (global_style.get("negative") or "").strip()
+            if global_style
+            else ""
+        )
+
         for i, segment in enumerate(segments, 1):
             logger.info(f"\n{'='*40}")
             logger.info(f"🎨 SEGMENT {i}: {segment.get('segment_id', i)}")
@@ -173,16 +290,35 @@ class ImageGenerator:
                 logger.info(f"❌ No image prompt found for segment {i}")
                 continue
 
+            # Apply global style
+            final_prompt = self.compose_prompt(image_prompt, global_style)
+
             # Generate filename based on segment info
             segment_id = segment.get("segment_id", i)
             start_time = segment.get("start_time", 0)
-            filename = f"broll_segment_{segment_id:02d}_{start_time:.1f}s_{aspect_ratio.replace(':', 'x')}.png"
+            end_time = segment.get(
+                "end_time", (start_time or 0) + VIDEO_DURATION
+            )
+            filename = f"segment_{segment_id:02d}_{start_time:.1f}s_{end_time:.1f}s.png"
+
+            # Determine seed (use global if provided, else per-segment)
+            global_seed = global_style.get("seed") if global_style else None
+            seed_to_use = (
+                int(global_seed)
+                if isinstance(global_seed, int)
+                else (DEFAULT_SEED + i)
+            )
 
             # Generate image
             image_result = self.generate_image(
-                prompt=image_prompt,
+                prompt=final_prompt,
                 aspect_ratio=aspect_ratio,
-                seed=DEFAULT_SEED + i,  # Different seed for each segment
+                seed=seed_to_use,  # Different seed for each segment unless global provided
+                negative_prompt=(
+                    f"{NEGATIVE_PROMPT_IMAGE}, {style_negative}".strip(", ")
+                    if style_negative
+                    else NEGATIVE_PROMPT_IMAGE
+                ),
             )
 
             if image_result:
@@ -239,6 +375,7 @@ class ImageGenerator:
         prompt: str,
         aspect_ratio: str = IMAGE_ASPECT_RATIO,
         seed: Optional[int] = None,
+        negative_prompt: Optional[str] = None,
     ) -> Optional[Dict]:
         """
         Generate image using fal.ai API
@@ -247,6 +384,7 @@ class ImageGenerator:
             prompt: Image generation prompt
             aspect_ratio: Image aspect ratio (default: IMAGE_ASPECT_RATIO)
             seed: Random seed for reproducible results
+            negative_prompt: Optional override for negative prompt
 
         Returns:
             Dictionary with image information or None if failed
@@ -262,7 +400,7 @@ class ImageGenerator:
             arguments = {
                 "prompt": prompt,
                 "aspect_ratio": aspect_ratio,
-                "negative_prompt": NEGATIVE_PROMPT_IMAGE,
+                "negative_prompt": negative_prompt or NEGATIVE_PROMPT_IMAGE,
                 "num_inference_steps": DEFAULT_NUM_INFERENCE_STEPS,
             }
 
