@@ -22,7 +22,6 @@ try:
     from .. import mock_api
     from ..config import config
     from ..constants import (
-        API_PROMPTS_FILENAME,
         BROLL_PROMPTS_DIR_NAME,
         DEFAULT_CFG_SCALE,
         DEFAULT_VIDEOS_OUTPUT_DIR,
@@ -33,6 +32,7 @@ try:
         VIDEO_FPS,
         VIDEO_GENERATION_DIR_NAME,
         VIDEO_RESOLUTION,
+        WORKFLOW_PROMPTS_FILENAME,
         base_data_dir,
     )
     from ..logger_config import logger
@@ -50,7 +50,6 @@ except ImportError:
     )
     from b_roll.config import config
     from b_roll.constants import (
-        API_PROMPTS_FILENAME,
         BROLL_PROMPTS_DIR_NAME,
         DEFAULT_CFG_SCALE,
         DEFAULT_VIDEOS_OUTPUT_DIR,
@@ -61,6 +60,7 @@ except ImportError:
         VIDEO_FPS,
         VIDEO_GENERATION_DIR_NAME,
         VIDEO_RESOLUTION,
+        WORKFLOW_PROMPTS_FILENAME,
         base_data_dir,
     )
     from b_roll.logger_config import logger
@@ -128,7 +128,7 @@ class KlingImageToVideoGenerator:
             base_data_dir = "data_mock" if config.is_mock_enabled else "data"
             prompts_file = str(
                 Path(__file__).parent.parent
-                / f"{base_data_dir}/{VIDEO_GENERATION_DIR_NAME}/{API_PROMPTS_FILENAME}"
+                / f"{base_data_dir}/{VIDEO_GENERATION_DIR_NAME}/{BROLL_PROMPTS_DIR_NAME}/{WORKFLOW_PROMPTS_FILENAME}"
             )
         """
         Load b-roll prompts from JSON file
@@ -515,7 +515,7 @@ def generate_broll_videos(
         base_data_dir = "data_mock" if config.is_mock_enabled else "data"
         prompts_file = str(
             Path(__file__).parent.parent
-            / f"{base_data_dir}/{VIDEO_GENERATION_DIR_NAME}/{API_PROMPTS_FILENAME}"
+            / f"{base_data_dir}/{VIDEO_GENERATION_DIR_NAME}/{BROLL_PROMPTS_DIR_NAME}/{WORKFLOW_PROMPTS_FILENAME}"
         )
     if images_dir is None:
         # Use data_mock when mock mode is enabled
