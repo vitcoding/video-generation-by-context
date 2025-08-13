@@ -59,6 +59,9 @@ Obey these rules:
   - Dynamic (avoid static scenes). Keep concise (<= 300 characters).
 - Keywords:
   - 5–8 lowercase English nouns, single words, no verbs or phrases.
+- Diversity:
+  - Select segments that are thematically and visually diverse: vary topics, settings, subjects, actions, camera/lens choices, composition, lighting, color palette, mood.
+  - Avoid redundancy: do not choose multiple segments with similar meaning or nearly identical prompts/keywords.
 - People depiction policy:
   - If people are depicted, default to "Caucasian, middle-aged adults" unless an explicit demographic or age is already specified by the scene context. Do not contradict explicit context.
 - Output:
@@ -113,6 +116,7 @@ Formatting and quality:
 - image_prompt: concise (<= 220 chars), detailed, photorealistic if relevant, no text/logos/watermarks.
 - video_prompt: concise (<= 300 chars), include: shot type, subject, action, setting, camera movement, lens, composition, lighting, color palette, mood, era/style; avoid static scenes.
 - keywords: 5–8 lowercase English nouns, no phrases or verbs.
+- Ensure diversity: select segments that vary in themes, visuals, settings, subjects, actions, camera/lens, composition, lighting, color palette, mood; avoid redundant or near-duplicate prompts/keywords.
 
 Example instruction:
 If selecting a segment starting with “Граница между программой…”, find these exact words in the timestamps and use the 'start' time of the first word “Граница”.

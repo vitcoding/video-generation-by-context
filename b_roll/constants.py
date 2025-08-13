@@ -33,7 +33,7 @@ DEFAULT_CFG_SCALE = 0.7  # Default CFG scale for video generation
 # API configuration
 DEFAULT_SEED = 42  # Default random seed for reproducible results
 DEFAULT_NUM_INFERENCE_STEPS = (
-    12  # Default number of inference steps for image generation
+    15  # Default number of inference steps for image generation
     # 20  # Default number of inference steps for image generation
 )
 
@@ -47,7 +47,7 @@ ENABLE_VIDEO_GENERATION = False  # Set to False to skip video generation
 # B-roll generation configuration
 # MAX_SEGMENTS = 1  # Maximum number of b-roll segments to generate
 # MAX_SEGMENTS = 20  # Maximum number of b-roll segments to generate
-MAX_SEGMENTS = 5  # Maximum number of b-roll segments to generate
+MAX_SEGMENTS = 20  # Maximum number of b-roll segments to generate
 
 # B-roll distribution configuration
 # Controls how b-roll segments are distributed across video timeline
