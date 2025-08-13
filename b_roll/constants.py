@@ -5,20 +5,21 @@ Constants for video generation project
 
 # Video generation constants
 # VIDEO_RESOLUTION = "1080x1920"
-VIDEO_RESOLUTION = "720x1280"
+# VIDEO_RESOLUTION = "720x1280"
 # VIDEO_RESOLUTION = "1920x1080"  # Full HD resolution for video generation
-# VIDEO_RESOLUTION = "1280x720"  # HD resolution
+VIDEO_RESOLUTION = "1280x720"  # HD resolution
 # VIDEO_RESOLUTION = "854x480"    # SD resolution
 # VIDEO_RESOLUTION = "3840x2160"  # 4K resolution
 
 # Model endpoints
-FAL_MODEL_ENDPOINT = "fal-ai/imagen4/preview/fast"
+# FAL_MODEL_ENDPOINT = "fal-ai/imagen4/preview/fast"
+FAL_MODEL_ENDPOINT = "fal-ai/flux/dev"
 KLING_MODEL_ENDPOINT = "fal-ai/kling-video/v1.6/pro/image-to-video"
 
 # Image aspect ratios
-# IMAGE_ASPECT_RATIO = "16:9"  # Default aspect ratio for video content
+IMAGE_ASPECT_RATIO = "16:9"  # Default aspect ratio for video content
+# IMAGE_ASPECT_RATIO = "9:16"  # Vertical format, good for mobile/vertical video
 # IMAGE_ASPECT_RATIO = "1:1"   # Square format, good for social media
-IMAGE_ASPECT_RATIO = "9:16"  # Vertical format, good for mobile/vertical video
 # IMAGE_ASPECT_RATIO = "4:3"   # Traditional format
 # IMAGE_ASPECT_RATIO = "3:2"   # Photography standard
 # IMAGE_ASPECT_RATIO = "21:9"  # Ultra-wide format
@@ -36,13 +37,28 @@ DEFAULT_NUM_INFERENCE_STEPS = (
     # 20  # Default number of inference steps for image generation
 )
 
+# OpenAI model configuration
+OPENAI_MODEL = "gpt-4.1-mini"
+
 # Workflow configuration
-ENABLE_VIDEO_GENERATION = True  # Flag to enable/disable video generation
-# ENABLE_VIDEO_GENERATION = False  # Set to False to skip video generation
+# ENABLE_VIDEO_GENERATION = True  # Flag to enable/disable video generation
+ENABLE_VIDEO_GENERATION = False  # Set to False to skip video generation
 
 # B-roll generation configuration
 # MAX_SEGMENTS = 1  # Maximum number of b-roll segments to generate
+# MAX_SEGMENTS = 20  # Maximum number of b-roll segments to generate
 MAX_SEGMENTS = 3  # Maximum number of b-roll segments to generate
+
+# B-roll distribution configuration
+# Controls how b-roll segments are distributed across video timeline
+EARLY_SEGMENT_RATIO = 0.4  # 40% of segments go in early portion
+EARLY_DURATION_RATIO = 0.25  # First 25% of video duration for early segments
+REMAINING_SEGMENT_RATIO = (
+    1.0 - EARLY_SEGMENT_RATIO
+)  # 60% of segments go in remaining portion
+REMAINING_DURATION_RATIO = (
+    1.0 - EARLY_DURATION_RATIO
+)  # Remaining 75% of video duration
 
 # File paths - dynamically set based on mock mode
 import sys
@@ -88,7 +104,6 @@ DEFAULT_PROMPTS_FILE = (
 # Standard file names
 TRANSCRIPTION_JSON_FILENAME = "transcription_verbose_to_json.json"
 WORKFLOW_PROMPTS_FILENAME = "workflow_generated_prompts.json"
-API_PROMPTS_FILENAME = "broll_prompts_api_generated.json"
 WORKFLOW_REPORT_FILENAME = "workflow_complete_report.json"
 DEFAULT_VIDEO_FILENAME = "video.mp4"
 ENV_FILENAME = ".env"
@@ -98,7 +113,6 @@ TRANSCRIPTION_JSON_PATH = (
     f"{AUDIO_TRANSCRIPT_DIR}/{TRANSCRIPTION_JSON_FILENAME}"
 )
 WORKFLOW_PROMPTS_PATH = f"{BROLL_PROMPTS_DIR}/{WORKFLOW_PROMPTS_FILENAME}"
-API_PROMPTS_PATH = f"{BROLL_PROMPTS_DIR}/{API_PROMPTS_FILENAME}"
 WORKFLOW_REPORT_PATH = f"{BASE_DATA_DIR_PATH}/{WORKFLOW_REPORT_FILENAME}"
 DEFAULT_VIDEO_PATH = f"{INPUT_VIDEO_DIR}/{DEFAULT_VIDEO_FILENAME}"
 

@@ -339,12 +339,15 @@ class MockOpenAITranscriptions:
         file: Any,
         response_format: str = "json",
         timestamp_granularities: Optional[List[str]] = None,
+        language: Optional[str] = None,
+        **kwargs,
     ) -> Dict:
         """Mock transcription creation"""
         print(f"🔧 [MOCK] OpenAI transcription")
         print(f"🔧 [MOCK] Model: {model}")
         print(f"🔧 [MOCK] Response format: {response_format}")
         print(f"🔧 [MOCK] Timestamp granularities: {timestamp_granularities}")
+        print(f"🔧 [MOCK] Language: {language}")
 
         # Simulate processing time
         time.sleep(1)

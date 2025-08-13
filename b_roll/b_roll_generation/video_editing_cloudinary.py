@@ -7,22 +7,39 @@ from typing import List, Optional
 
 from dotenv import load_dotenv
 
-# Add path for importing constants and logger
-sys.path.append(str(Path(__file__).parent.parent))
-from config import config
-from constants import (
-    BROLL_PROMPTS_DIR_NAME,
-    DEFAULT_VIDEO_FILENAME,
-    DEFAULT_VIDEOS_OUTPUT_DIR,
-    INPUT_VIDEO_DIR_NAME,
-    VIDEO_FPS,
-    VIDEO_GENERATION_DIR_NAME,
-    VIDEO_OUTPUT_DIR_NAME,
-    VIDEO_RESOLUTION,
-    WORKFLOW_PROMPTS_FILENAME,
-    base_data_dir,
-)
-from logger_config import logger
+# Replace fragile imports with robust package/direct execution handling
+try:
+    from ..config import config
+    from ..constants import (
+        BROLL_PROMPTS_DIR_NAME,
+        DEFAULT_VIDEO_FILENAME,
+        DEFAULT_VIDEOS_OUTPUT_DIR,
+        INPUT_VIDEO_DIR_NAME,
+        VIDEO_GENERATION_DIR_NAME,
+        VIDEO_OUTPUT_DIR_NAME,
+        VIDEO_RESOLUTION,
+        WORKFLOW_PROMPTS_FILENAME,
+        base_data_dir,
+    )
+    from ..logger_config import logger
+except ImportError:
+    import sys as _sys
+    from pathlib import Path as _Path
+
+    _sys.path.append(str(_Path(__file__).resolve().parents[2]))
+    from b_roll.config import config
+    from b_roll.constants import (
+        BROLL_PROMPTS_DIR_NAME,
+        DEFAULT_VIDEO_FILENAME,
+        DEFAULT_VIDEOS_OUTPUT_DIR,
+        INPUT_VIDEO_DIR_NAME,
+        VIDEO_GENERATION_DIR_NAME,
+        VIDEO_OUTPUT_DIR_NAME,
+        VIDEO_RESOLUTION,
+        WORKFLOW_PROMPTS_FILENAME,
+        base_data_dir,
+    )
+    from b_roll.logger_config import logger
 
 # Import real modules only if API is enabled
 if config.is_api_enabled:
@@ -349,7 +366,7 @@ def process_video_with_broll(
             logger.info("🔧 [MOCK] Skipping cleanup in mock mode")
 
 
-if __name__ == "__main__":
+def main():
     # Example usage with new interface
     HEYGEN_VIDEO_PATH = f"b_roll/data/{VIDEO_GENERATION_DIR_NAME}/{INPUT_VIDEO_DIR_NAME}/{DEFAULT_VIDEO_FILENAME}"
 
@@ -368,3 +385,7 @@ if __name__ == "__main__":
 
     except Exception as e:
         logger.error(f"Failed to process video: {e}")
+
+
+if __name__ == "__main__":
+    main()

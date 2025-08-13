@@ -17,23 +17,47 @@ from typing import Dict, List, Optional
 
 from dotenv import load_dotenv
 
-sys.path.append(str(Path(__file__).parent.parent))
-import mock_api
-from config import config
-from constants import (
-    DEFAULT_IMAGES_OUTPUT_DIR,
-    DEFAULT_NUM_INFERENCE_STEPS,
-    DEFAULT_PROMPTS_FILE,
-    DEFAULT_SEED,
-    ENV_FILENAME,
-    FAL_MODEL_ENDPOINT,
-    IMAGE_ASPECT_RATIO,
-    PROJECT_ROOT_RELATIVE_PATH,
-)
-from logger_config import logger
-from mock_api import mock_fal_client, mock_requests
+# Replace fragile imports with robust package/direct execution handling
+try:
+    from .. import mock_api
+    from ..config import config
+    from ..constants import (
+        BROLL_PROMPTS_DIR,
+        DEFAULT_IMAGES_OUTPUT_DIR,
+        DEFAULT_NUM_INFERENCE_STEPS,
+        DEFAULT_SEED,
+        ENV_FILENAME,
+        FAL_MODEL_ENDPOINT,
+        IMAGE_ASPECT_RATIO,
+        PROJECT_ROOT_RELATIVE_PATH,
+        VIDEO_DURATION,
+        WORKFLOW_PROMPTS_PATH,
+    )
+    from ..logger_config import logger
+    from ..mock_api import mock_fal_client, mock_requests
+    from .prompts import NEGATIVE_PROMPT_IMAGE
+except ImportError:
+    import sys as _sys
+    from pathlib import Path as _Path
 
-from .prompts import NEGATIVE_PROMPT_IMAGE
+    _sys.path.append(str(_Path(__file__).resolve().parents[2]))
+    from b_roll import mock_api
+    from b_roll.b_roll_generation.prompts import NEGATIVE_PROMPT_IMAGE
+    from b_roll.config import config
+    from b_roll.constants import (
+        BROLL_PROMPTS_DIR,
+        DEFAULT_IMAGES_OUTPUT_DIR,
+        DEFAULT_NUM_INFERENCE_STEPS,
+        DEFAULT_SEED,
+        ENV_FILENAME,
+        FAL_MODEL_ENDPOINT,
+        IMAGE_ASPECT_RATIO,
+        PROJECT_ROOT_RELATIVE_PATH,
+        VIDEO_DURATION,
+        WORKFLOW_PROMPTS_PATH,
+    )
+    from b_roll.logger_config import logger
+    from b_roll.mock_api import mock_fal_client, mock_requests
 
 # Import real modules only if API is enabled
 if config.is_api_enabled:
@@ -83,9 +107,41 @@ class ImageGenerator:
         self.output_dir = Path(DEFAULT_IMAGES_OUTPUT_DIR)
         self.output_dir.mkdir(exist_ok=True)
 
+    def _contains_humans(self, text: str) -> bool:
+        """Heuristic check whether the prompt likely includes people."""
+        if not text:
+            return False
+        t = text.lower()
+        human_keywords = [
+            "person",
+            "people",
+            "man",
+            "woman",
+            "men",
+            "women",
+            "adult",
+            "team",
+            "group",
+            "crowd",
+            "colleague",
+            "coworker",
+            "employees",
+            "worker",
+            "business team",
+            "audience",
+            "speaker",
+            "meeting",
+            "office team",
+            "portrait",
+            "headshot",
+            "couple",
+            "family",
+        ]
+        return any(k in t for k in human_keywords)
+
     def load_broll_prompts(
         self,
-        prompts_file: str = DEFAULT_PROMPTS_FILE,
+        prompts_file: str = WORKFLOW_PROMPTS_PATH,
     ) -> Dict:
         """
         Load b-roll prompts from JSON file
@@ -97,16 +153,20 @@ class ImageGenerator:
             Dictionary with b-roll prompts data
         """
         try:
-            if not os.path.exists(prompts_file):
-                raise FileNotFoundError(
-                    f"Prompts file not found: {prompts_file}"
-                )
+            # Resolve to absolute path relative to project root if needed
+            file_path = Path(prompts_file)
+            if not file_path.is_absolute():
+                project_root = Path(__file__).parents[2]
+                file_path = (project_root / file_path).resolve()
 
-            with open(prompts_file, "r", encoding="utf-8") as f:
+            if not file_path.exists():
+                raise FileNotFoundError(f"Prompts file not found: {file_path}")
+
+            with open(file_path, "r", encoding="utf-8") as f:
                 prompts_data = json.load(f)
 
             logger.info(
-                f"✅ Loaded {len(prompts_data.get('broll_segments', []))} b-roll segments from {prompts_file}"
+                f"✅ Loaded {len(prompts_data.get('broll_segments', []))} b-roll segments from {file_path}"
             )
             return prompts_data
 
@@ -114,15 +174,95 @@ class ImageGenerator:
             logger.info(f"❌ Error loading prompts: {e}")
             return {}
 
+    def load_global_style(self) -> Dict:
+        """
+        Load optional global style JSON from b-roll prompts directory.
+        """
+        try:
+            style_path = Path(BROLL_PROMPTS_DIR) / "global_style.json"
+            if not style_path.is_absolute():
+                project_root = Path(__file__).parents[2]
+                style_path = (project_root / style_path).resolve()
+            if style_path.exists():
+                with open(style_path, "r", encoding="utf-8") as f:
+                    return json.load(f)
+        except Exception:
+            pass
+        return {}
+
+    def compose_prompt(self, base_prompt: str, style: Dict) -> str:
+        """
+        Merge base image prompt with global style fields.
+        """
+        # Always build tokens to allow mandatory demographics even without style json
+        style = style or {}
+
+        tokens: List[str] = []
+        prefix = str(style.get("prefix", "")).strip()
+        if prefix:
+            tokens.append(prefix)
+
+        if base_prompt:
+            tokens.append(base_prompt.strip())
+
+        def add_list(name: str) -> None:
+            vals = style.get(name)
+            if isinstance(vals, list) and vals:
+                tokens.append(", ".join([str(v) for v in vals]))
+
+        add_list("style_tags")
+        add_list("camera")
+        add_list("lighting")
+        add_list("color_palette")
+
+        # Conditionally enforce human demographics when people are present
+        combined_so_far = ". ".join([t for t in tokens if t])
+        demographics = str(
+            style.get("human_demographics", "Caucasian, middle-aged adults")
+        ).strip()
+        if demographics:
+            lower_text = combined_so_far.lower()
+            conflicting_terms = [
+                "asian",
+                "african",
+                "black",
+                "latino",
+                "hispanic",
+                "indian",
+                "arab",
+                "elderly",
+                "senior",
+                "young",
+                "teen",
+                "child",
+                "middle-aged",
+                "caucasian",
+                "white",
+            ]
+            if self._contains_humans(combined_so_far) and not any(
+                term in lower_text for term in conflicting_terms
+            ):
+                tokens.append(demographics)
+
+        suffix = str(style.get("suffix", "")).strip()
+        if suffix:
+            tokens.append(suffix)
+
+        return ". ".join([t for t in tokens if t])
+
     def generate_images_for_broll_segments(
-        self, prompts_data: Dict, aspect_ratio: str = IMAGE_ASPECT_RATIO
+        self,
+        prompts_data: Dict,
+        aspect_ratio: str = IMAGE_ASPECT_RATIO,
+        selected_segment_ids: Optional[List[int]] = None,
     ) -> List[Dict]:
         """
-        Generate images for all b-roll segments
+        Generate images for all or selected b-roll segments.
 
         Args:
             prompts_data: Dictionary with b-roll prompts data
             aspect_ratio: Image aspect ratio (default: IMAGE_ASPECT_RATIO)
+            selected_segment_ids: Optional list of segment_id values to generate only specific segments
 
         Returns:
             List of dictionaries with generation results
@@ -134,8 +274,35 @@ class ImageGenerator:
             logger.info("❌ No b-roll segments found in prompts data")
             return results
 
+        # Filter segments by provided IDs if any
+        if selected_segment_ids:
+            try:
+                id_set = {int(x) for x in selected_segment_ids}
+            except Exception:
+                id_set = set()
+            original_count = len(segments)
+            segments = [
+                s for s in segments if int(s.get("segment_id", 0)) in id_set
+            ]
+            logger.info(
+                f"📌 Filtering to segment_ids {sorted(id_set)}: {len(segments)}/{original_count} segments"
+            )
+            if not segments:
+                logger.info(
+                    "❌ No matching segments found for the requested IDs"
+                )
+                return results
+
         logger.info(
             f"🎨 Generating images for {len(segments)} b-roll segments..."
+        )
+
+        # Load optional global style once
+        global_style = self.load_global_style()
+        style_negative = (
+            (global_style.get("negative") or "").strip()
+            if global_style
+            else ""
         )
 
         for i, segment in enumerate(segments, 1):
@@ -149,16 +316,33 @@ class ImageGenerator:
                 logger.info(f"❌ No image prompt found for segment {i}")
                 continue
 
+            # Apply global style
+            final_prompt = self.compose_prompt(image_prompt, global_style)
+
             # Generate filename based on segment info
             segment_id = segment.get("segment_id", i)
             start_time = segment.get("start_time", 0)
-            filename = f"broll_segment_{segment_id:02d}_{start_time:.1f}s_{aspect_ratio.replace(':', 'x')}.png"
+            end_time = segment.get(
+                "end_time", (start_time or 0) + VIDEO_DURATION
+            )
+            filename = f"segment_{segment_id:02d}_{start_time:.1f}s_{end_time:.1f}s.png"
+
+            # Determine seed (use global if provided, else None to allow non-deterministic outputs)
+            global_seed = global_style.get("seed") if global_style else None
+            seed_to_use = (
+                int(global_seed) if isinstance(global_seed, int) else None
+            )
 
             # Generate image
             image_result = self.generate_image(
-                prompt=image_prompt,
+                prompt=final_prompt,
                 aspect_ratio=aspect_ratio,
-                seed=DEFAULT_SEED + i,  # Different seed for each segment
+                seed=seed_to_use,
+                negative_prompt=(
+                    f"{NEGATIVE_PROMPT_IMAGE}, {style_negative}".strip(", ")
+                    if style_negative
+                    else NEGATIVE_PROMPT_IMAGE
+                ),
             )
 
             if image_result:
@@ -215,6 +399,7 @@ class ImageGenerator:
         prompt: str,
         aspect_ratio: str = IMAGE_ASPECT_RATIO,
         seed: Optional[int] = None,
+        negative_prompt: Optional[str] = None,
     ) -> Optional[Dict]:
         """
         Generate image using fal.ai API
@@ -223,6 +408,7 @@ class ImageGenerator:
             prompt: Image generation prompt
             aspect_ratio: Image aspect ratio (default: IMAGE_ASPECT_RATIO)
             seed: Random seed for reproducible results
+            negative_prompt: Optional override for negative prompt
 
         Returns:
             Dictionary with image information or None if failed
@@ -238,7 +424,7 @@ class ImageGenerator:
             arguments = {
                 "prompt": prompt,
                 "aspect_ratio": aspect_ratio,
-                "negative_prompt": NEGATIVE_PROMPT_IMAGE,
+                "negative_prompt": negative_prompt or NEGATIVE_PROMPT_IMAGE,
                 "num_inference_steps": DEFAULT_NUM_INFERENCE_STEPS,
             }
 
@@ -328,9 +514,12 @@ class ImageGenerator:
         logger.info(f"📊 Report saved to: {report_file}")
 
 
-def test_image_generation():
+def test_image_generation(selected_segment_ids: Optional[List[int]] = None):
     """
-    Test fal.ai image generation with b-roll prompts
+    Test fal.ai image generation with b-roll prompts. Can optionally target selected segments.
+
+    Args:
+        selected_segment_ids: Optional list of segment_id values to generate only specific segments
     """
     logger.info("🧪 Testing fal.ai Image Generator with B-roll Prompts")
     logger.info("=" * 60)
@@ -347,7 +536,9 @@ def test_image_generation():
 
         # Generate images for all segments
         results = generator.generate_images_for_broll_segments(
-            prompts_data, aspect_ratio=IMAGE_ASPECT_RATIO
+            prompts_data,
+            aspect_ratio=IMAGE_ASPECT_RATIO,
+            selected_segment_ids=selected_segment_ids,
         )
 
         # Summary
@@ -387,15 +578,17 @@ def test_image_generation():
 
 
 def generate_broll_images(
-    prompts_file: str = DEFAULT_PROMPTS_FILE,
+    prompts_file: str = WORKFLOW_PROMPTS_PATH,
     aspect_ratio: str = IMAGE_ASPECT_RATIO,
+    selected_segment_ids: Optional[List[int]] = None,
 ) -> bool:
     """
-    Generate images for all b-roll segments from prompts file
+    Generate images for b-roll segments from prompts file. Can optionally target selected segments.
 
     Args:
         prompts_file: Path to the prompts JSON file
         aspect_ratio: Image aspect ratio (default: IMAGE_ASPECT_RATIO)
+        selected_segment_ids: Optional list of segment_id values to generate only specific segments
 
     Returns:
         True if generation successful, False otherwise
@@ -415,7 +608,9 @@ def generate_broll_images(
 
         # Generate images for all segments
         results = generator.generate_images_for_broll_segments(
-            prompts_data, aspect_ratio
+            prompts_data,
+            aspect_ratio,
+            selected_segment_ids=selected_segment_ids,
         )
 
         # Summary
@@ -453,9 +648,9 @@ def generate_broll_images(
         return False
 
 
-def main():
-    """Run the image generation test"""
-    success = test_image_generation()
+def main(segment_ids: Optional[List[int]] = None):
+    """Run the image generation test with optional selection by segment IDs."""
+    success = test_image_generation(selected_segment_ids=segment_ids)
 
     if success:
         logger.info(
@@ -468,4 +663,37 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    # Optional CLI: --ids "1,3,5" or --ids 1 3 5
+    import argparse
+
+    parser = argparse.ArgumentParser(description="B-roll image generation")
+    parser.add_argument(
+        "--ids",
+        "--segments",
+        dest="ids",
+        type=str,
+        nargs="*",
+        help=(
+            "Segment IDs to generate. Accepts space or comma separated values. "
+            "Examples: --ids 1 3 5  or  --ids 1,3,5"
+        ),
+    )
+    args = parser.parse_args()
+
+    parsed_ids: Optional[List[int]] = None
+    if args.ids:
+        tokens: List[str] = []
+        # Support both space-separated and comma-separated inputs
+        for token in args.ids:
+            if "," in token:
+                tokens.extend([t for t in token.split(",") if t])
+            else:
+                tokens.append(token)
+        parsed_ids = []
+        for t in tokens:
+            try:
+                parsed_ids.append(int(t))
+            except ValueError:
+                pass
+
+    main(segment_ids=parsed_ids)

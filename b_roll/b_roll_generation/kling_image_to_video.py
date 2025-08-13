@@ -16,31 +16,57 @@ from pathlib import Path
 from typing import Dict, List, Optional
 
 from dotenv import load_dotenv
-from logger_config import logger
 
-sys.path.append(str(Path(__file__).parent.parent))
-import mock_api
-from config import config
-from constants import (
-    API_PROMPTS_FILENAME,
-    BROLL_PROMPTS_DIR_NAME,
-    DEFAULT_VIDEOS_OUTPUT_DIR,
-    IMAGE_ASPECT_RATIO,
-    IMAGES_INPUT_DIR_NAME,
-    KLING_MODEL_ENDPOINT,
-    VIDEO_DURATION,
-    VIDEO_FPS,
-    VIDEO_GENERATION_DIR_NAME,
-    VIDEO_RESOLUTION,
-    base_data_dir,
-)
-from mock_api import mock_fal_client, mock_requests
+# Replace fragile imports with robust package/direct execution handling
+try:
+    from .. import mock_api
+    from ..config import config
+    from ..constants import (
+        BROLL_PROMPTS_DIR,
+        BROLL_PROMPTS_DIR_NAME,
+        DEFAULT_CFG_SCALE,
+        DEFAULT_VIDEOS_OUTPUT_DIR,
+        IMAGE_ASPECT_RATIO,
+        IMAGES_INPUT_DIR_NAME,
+        KLING_MODEL_ENDPOINT,
+        VIDEO_DURATION,
+        VIDEO_FPS,
+        VIDEO_GENERATION_DIR_NAME,
+        VIDEO_RESOLUTION,
+        WORKFLOW_PROMPTS_FILENAME,
+        base_data_dir,
+    )
+    from ..logger_config import logger
+    from ..mock_api import mock_fal_client, mock_requests
+    from .prompts import DEFAULT_VIDEO_DURATION, NEGATIVE_PROMPT_VIDEO
+except ImportError:
+    import sys as _sys
+    from pathlib import Path as _Path
 
-from .prompts import (
-    DEFAULT_CFG_SCALE,
-    DEFAULT_VIDEO_DURATION,
-    NEGATIVE_PROMPT_VIDEO,
-)
+    _sys.path.append(str(_Path(__file__).resolve().parents[2]))
+    from b_roll import mock_api
+    from b_roll.b_roll_generation.prompts import (
+        DEFAULT_VIDEO_DURATION,
+        NEGATIVE_PROMPT_VIDEO,
+    )
+    from b_roll.config import config
+    from b_roll.constants import (
+        BROLL_PROMPTS_DIR,
+        BROLL_PROMPTS_DIR_NAME,
+        DEFAULT_CFG_SCALE,
+        DEFAULT_VIDEOS_OUTPUT_DIR,
+        IMAGE_ASPECT_RATIO,
+        IMAGES_INPUT_DIR_NAME,
+        KLING_MODEL_ENDPOINT,
+        VIDEO_DURATION,
+        VIDEO_FPS,
+        VIDEO_GENERATION_DIR_NAME,
+        VIDEO_RESOLUTION,
+        WORKFLOW_PROMPTS_FILENAME,
+        base_data_dir,
+    )
+    from b_roll.logger_config import logger
+    from b_roll.mock_api import mock_fal_client, mock_requests
 
 # Import real modules only if API is enabled
 if config.is_api_enabled:
@@ -104,7 +130,7 @@ class KlingImageToVideoGenerator:
             base_data_dir = "data_mock" if config.is_mock_enabled else "data"
             prompts_file = str(
                 Path(__file__).parent.parent
-                / f"{base_data_dir}/{VIDEO_GENERATION_DIR_NAME}/{API_PROMPTS_FILENAME}"
+                / f"{base_data_dir}/{VIDEO_GENERATION_DIR_NAME}/{BROLL_PROMPTS_DIR_NAME}/{WORKFLOW_PROMPTS_FILENAME}"
             )
         """
         Load b-roll prompts from JSON file
@@ -132,6 +158,120 @@ class KlingImageToVideoGenerator:
         except Exception as e:
             logger.error(f"❌ Error loading prompts: {e}")
             return {}
+
+    def load_global_style(self) -> Dict:
+        """
+        Load optional global style JSON from b-roll prompts directory.
+        """
+        try:
+            style_path = Path(BROLL_PROMPTS_DIR) / "global_style.json"
+            if not style_path.is_absolute():
+                project_root = Path(__file__).parents[2]
+                style_path = (project_root / style_path).resolve()
+            if style_path.exists():
+                with open(style_path, "r", encoding="utf-8") as f:
+                    return json.load(f)
+        except Exception:
+            pass
+        return {}
+
+    def compose_video_prompt(self, base_prompt: str, style: Dict) -> str:
+        """
+        Merge base video prompt with global style fields.
+        """
+        if not style:
+            return base_prompt
+
+        tokens: List[str] = []
+        prefix = str(
+            style.get("video_prefix", style.get("prefix", ""))
+        ).strip()
+        if prefix:
+            tokens.append(prefix)
+
+        if base_prompt:
+            tokens.append(base_prompt.strip())
+
+        def add_list(name: str) -> None:
+            vals = style.get(name)
+            if isinstance(vals, list) and vals:
+                tokens.append(", ".join([str(v) for v in vals]))
+
+        # Reuse same style lists
+        add_list("style_tags")
+        add_list("camera")
+        add_list("lighting")
+        add_list("color_palette")
+
+        # Conditionally enforce human demographics when people are present
+        combined_so_far = ". ".join([t for t in tokens if t])
+        demographics = str(
+            style.get("human_demographics", "Caucasian, middle-aged adults")
+        ).strip()
+        if demographics:
+            lower_text = combined_so_far.lower()
+            conflicting_terms = [
+                "asian",
+                "african",
+                "black",
+                "latino",
+                "hispanic",
+                "indian",
+                "arab",
+                "elderly",
+                "senior",
+                "young",
+                "teen",
+                "child",
+                "middle-aged",
+                "caucasian",
+                "white",
+            ]
+
+            # Lightweight person detection
+            def _contains_humans(text: str) -> bool:
+                t = text.lower()
+                for k in [
+                    "person",
+                    "people",
+                    "man",
+                    "woman",
+                    "men",
+                    "women",
+                    "adult",
+                    "team",
+                    "group",
+                    "crowd",
+                    "colleague",
+                    "coworker",
+                    "employees",
+                    "worker",
+                    "business team",
+                    "audience",
+                    "speaker",
+                    "meeting",
+                    "office team",
+                    "portrait",
+                    "headshot",
+                    "couple",
+                    "family",
+                ]:
+                    if k in t:
+                        return True
+                return False
+
+            if _contains_humans(combined_so_far) and not any(
+                term in lower_text for term in conflicting_terms
+            ):
+                tokens.append(demographics)
+
+        suffix = str(
+            style.get("video_suffix", style.get("suffix", ""))
+        ).strip()
+        if suffix:
+            tokens.append(suffix)
+
+        return ". ".join([t for t in tokens if t])
 
     def upload_image(self, image_path: str) -> str:
         """
@@ -171,6 +311,7 @@ class KlingImageToVideoGenerator:
         aspect_ratio: str = IMAGE_ASPECT_RATIO,
         fps: int = VIDEO_FPS,
         resolution: str = VIDEO_RESOLUTION,
+        negative_prompt: Optional[str] = None,
     ) -> Optional[Dict]:
         """
         Generate video from image using Kling 1.6 Pro
@@ -181,6 +322,7 @@ class KlingImageToVideoGenerator:
             aspect_ratio: Video aspect ratio (16:9, 9:16, 1:1)
             fps: Frames per second for video generation
             resolution: Video resolution (e.g., "720x1280")
+            negative_prompt: Optional override for negative prompt
 
         Returns:
             Dictionary with video information or None if failed
@@ -208,7 +350,9 @@ class KlingImageToVideoGenerator:
                     "aspect_ratio": aspect_ratio,
                     "fps": fps,
                     "resolution": resolution,
-                    "negative_prompt": NEGATIVE_PROMPT_VIDEO,
+                    "negative_prompt": (
+                        negative_prompt or NEGATIVE_PROMPT_VIDEO
+                    ),
                     "cfg_scale": DEFAULT_CFG_SCALE,
                 },
             )
@@ -240,6 +384,7 @@ class KlingImageToVideoGenerator:
         prompts_data: Dict,
         images_dir: str = None,
         aspect_ratio: str = IMAGE_ASPECT_RATIO,
+        selected_segment_ids: Optional[List[int]] = None,
     ) -> List[Dict]:
         # Use default images directory if not specified
         if images_dir is None:
@@ -255,12 +400,13 @@ class KlingImageToVideoGenerator:
                 / f"{base_data_dir}/{VIDEO_GENERATION_DIR_NAME}/{IMAGES_INPUT_DIR_NAME}"
             )
         """
-        Generate videos for all b-roll segments
+        Generate videos for all or selected b-roll segments
 
         Args:
             prompts_data: Dictionary with b-roll prompts data
             images_dir: Directory containing generated images
             aspect_ratio: Video aspect ratio (default: IMAGE_ASPECT_RATIO)
+            selected_segment_ids: Optional list of segment_id values to generate only specific segments
 
         Returns:
             List of dictionaries with generation results
@@ -272,8 +418,39 @@ class KlingImageToVideoGenerator:
             logger.error("❌ No b-roll segments found in prompts data")
             return results
 
+        # Filter by requested IDs if provided
+        if selected_segment_ids:
+            try:
+                id_set = {int(x) for x in selected_segment_ids}
+            except Exception:
+                id_set = set()
+            original_count = len(segments)
+            segments = [
+                s for s in segments if int(s.get("segment_id", 0)) in id_set
+            ]
+            logger.info(
+                f"📌 Filtering to segment_ids {sorted(id_set)}: {len(segments)}/{original_count} segments"
+            )
+            if not segments:
+                logger.error(
+                    "❌ No matching segments found for the requested IDs"
+                )
+                return results
+
         logger.info(
             f"🎬 Generating videos for {len(segments)} b-roll segments..."
+        )
+
+        # Load optional global style once
+        global_style = self.load_global_style()
+        style_negative = (
+            (
+                global_style.get("video_negative")
+                or global_style.get("negative")
+                or ""
+            ).strip()
+            if global_style
+            else ""
         )
 
         for i, segment in enumerate(segments, 1):
@@ -287,29 +464,53 @@ class KlingImageToVideoGenerator:
                 logger.error(f"❌ No video prompt found for segment {i}")
                 continue
 
+            # Apply global style
+            final_video_prompt = self.compose_video_prompt(
+                video_prompt, global_style
+            )
+
             # Generate image filename based on segment info
             segment_id = segment.get("segment_id", i)
             start_time = segment.get("start_time", 0)
-            # Convert IMAGE_ASPECT_RATIO to filename format
-            aspect_ratio_filename = IMAGE_ASPECT_RATIO.replace(":", "x")
-            image_filename = f"broll_segment_{segment_id:02d}_{start_time:.1f}s_{aspect_ratio_filename}.png"
+            end_time = segment.get(
+                "end_time", (start_time or 0) + VIDEO_DURATION
+            )
+            image_filename = f"segment_{segment_id:02d}_{start_time:.1f}s_{end_time:.1f}s.png"
             image_path = os.path.join(images_dir, image_filename)
 
             # Check if image exists
             if not os.path.exists(image_path):
                 logger.error(f"❌ Image not found: {image_path}")
+                results.append(
+                    {
+                        "error": "Image not found",
+                        "download_success": False,
+                        "local_filename": None,
+                        "segment_info": {
+                            "segment_id": segment.get("segment_id"),
+                            "start_time": segment.get("start_time"),
+                            "end_time": segment.get("end_time"),
+                            "text_context": segment.get("text_context", ""),
+                            "keywords": segment.get("keywords", []),
+                            "importance_score": segment.get(
+                                "importance_score", 0
+                            ),
+                        },
+                    }
+                )
                 continue
 
             # Generate video filename
-            video_filename = f"broll_segment_{segment_id:02d}_{start_time:.1f}s_{aspect_ratio_filename}.mp4"
+            video_filename = f"segment_{segment_id:02d}_{start_time:.1f}s_{end_time:.1f}s_video.mp4"
 
             # Generate video
             video_result = self.generate_video_from_image(
                 image_path=image_path,
-                prompt=video_prompt,
+                prompt=final_video_prompt,
                 aspect_ratio=aspect_ratio,
                 fps=VIDEO_FPS,
                 resolution=VIDEO_RESOLUTION,
+                negative_prompt=style_negative,
             )
 
             if video_result:
@@ -417,9 +618,15 @@ class KlingImageToVideoGenerator:
         logger.info(f"📊 Report saved to: {report_file}")
 
 
-def test_kling_image_to_video():
+def test_kling_image_to_video(
+    selected_segment_ids: Optional[List[int]] = None,
+):
     """
     Test Kling 1.6 Pro Image-to-Video generation with b-roll prompts
+    Can optionally target selected segments.
+
+    Args:
+        selected_segment_ids: Optional list of segment_id values to generate only specific segments
     """
     logger.info("🧪 Testing Kling 1.6 Pro Image-to-Video Generator")
     logger.info("=" * 60)
@@ -436,7 +643,9 @@ def test_kling_image_to_video():
 
         # Generate videos for all segments
         results = generator.generate_videos_for_broll_segments(
-            prompts_data, aspect_ratio=IMAGE_ASPECT_RATIO
+            prompts_data,
+            aspect_ratio=IMAGE_ASPECT_RATIO,
+            selected_segment_ids=selected_segment_ids,
         )
 
         # Summary
@@ -479,6 +688,7 @@ def generate_broll_videos(
     prompts_file: str = None,
     images_dir: str = None,
     aspect_ratio: str = IMAGE_ASPECT_RATIO,
+    selected_segment_ids: Optional[List[int]] = None,
 ) -> bool:
     # Use default paths if not specified
     if prompts_file is None:
@@ -491,7 +701,7 @@ def generate_broll_videos(
         base_data_dir = "data_mock" if config.is_mock_enabled else "data"
         prompts_file = str(
             Path(__file__).parent.parent
-            / f"{base_data_dir}/{VIDEO_GENERATION_DIR_NAME}/{API_PROMPTS_FILENAME}"
+            / f"{base_data_dir}/{VIDEO_GENERATION_DIR_NAME}/{BROLL_PROMPTS_DIR_NAME}/{WORKFLOW_PROMPTS_FILENAME}"
         )
     if images_dir is None:
         # Use data_mock when mock mode is enabled
@@ -506,12 +716,13 @@ def generate_broll_videos(
             / f"{base_data_dir}/{VIDEO_GENERATION_DIR_NAME}/{IMAGES_INPUT_DIR_NAME}"
         )
     """
-    Generate videos for all b-roll segments from prompts file
+    Generate videos for b-roll segments from prompts file. Can optionally target selected segments.
 
     Args:
         prompts_file: Path to the prompts JSON file
         images_dir: Directory containing generated images
         aspect_ratio: Video aspect ratio (default: IMAGE_ASPECT_RATIO)
+        selected_segment_ids: Optional list of segment_id values to generate only specific segments
 
     Returns:
         True if generation successful, False otherwise
@@ -531,7 +742,10 @@ def generate_broll_videos(
 
         # Generate videos for all segments
         results = generator.generate_videos_for_broll_segments(
-            prompts_data, images_dir, aspect_ratio
+            prompts_data,
+            images_dir,
+            aspect_ratio,
+            selected_segment_ids=selected_segment_ids,
         )
 
         # Summary
@@ -569,9 +783,9 @@ def generate_broll_videos(
         return False
 
 
-def main():
-    """Run the image-to-video test"""
-    success = test_kling_image_to_video()
+def main(segment_ids: Optional[List[int]] = None):
+    """Run the image-to-video test with optional selection by segment IDs."""
+    success = test_kling_image_to_video(selected_segment_ids=segment_ids)
 
     if success:
         logger.info(
@@ -584,4 +798,39 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    # Optional CLI: --ids "1,3,5" or --ids 1 3 5
+    import argparse
+
+    parser = argparse.ArgumentParser(
+        description="Kling image-to-video generation"
+    )
+    parser.add_argument(
+        "--ids",
+        "--segments",
+        dest="ids",
+        type=str,
+        nargs="*",
+        help=(
+            "Segment IDs to generate. Accepts space or comma separated values. "
+            "Examples: --ids 1 3 5  or  --ids 1,3,5"
+        ),
+    )
+    args = parser.parse_args()
+
+    parsed_ids: Optional[List[int]] = None
+    if args.ids:
+        tokens: List[str] = []
+        # Support both space-separated and comma-separated inputs
+        for token in args.ids:
+            if "," in token:
+                tokens.extend([t for t in token.split(",") if t])
+            else:
+                tokens.append(token)
+        parsed_ids = []
+        for t in tokens:
+            try:
+                parsed_ids.append(int(t))
+            except ValueError:
+                pass
+
+    main(segment_ids=parsed_ids)
