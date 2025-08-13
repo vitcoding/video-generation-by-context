@@ -14,21 +14,37 @@ from typing import Dict, List, Optional
 
 from dotenv import load_dotenv
 
-# Adding a path for importing constants and logger
-sys.path.append(str(Path(__file__).parent.parent))
-import mock_api
-from config import config
-from constants import (
-    AUDIO_TRANSCRIPT_DIR_NAME,
-    BASE_RELATIVE_PATH,
-    DEFAULT_VIDEO_FILENAME,
-    INPUT_VIDEO_DIR_NAME,
-    TRANSCRIPTION_JSON_FILENAME,
-    VIDEO_GENERATION_DIR_NAME,
-    base_data_dir,
-)
-from logger_config import logger
-from mock_api import mock_openai_client
+# Replace fragile imports with robust package/direct execution handling
+try:
+    from ..config import config
+    from ..constants import (
+        AUDIO_TRANSCRIPT_DIR_NAME,
+        BASE_RELATIVE_PATH,
+        DEFAULT_VIDEO_FILENAME,
+        INPUT_VIDEO_DIR_NAME,
+        TRANSCRIPTION_JSON_FILENAME,
+        VIDEO_GENERATION_DIR_NAME,
+        base_data_dir,
+    )
+    from ..logger_config import logger
+    from ..mock_api import mock_openai_client
+except ImportError:
+    import sys as _sys
+    from pathlib import Path as _Path
+
+    _sys.path.append(str(_Path(__file__).resolve().parents[2]))
+    from b_roll.config import config
+    from b_roll.constants import (
+        AUDIO_TRANSCRIPT_DIR_NAME,
+        BASE_RELATIVE_PATH,
+        DEFAULT_VIDEO_FILENAME,
+        INPUT_VIDEO_DIR_NAME,
+        TRANSCRIPTION_JSON_FILENAME,
+        VIDEO_GENERATION_DIR_NAME,
+        base_data_dir,
+    )
+    from b_roll.logger_config import logger
+    from b_roll.mock_api import mock_openai_client
 
 # Import real OpenAI module only if API is enabled
 if config.is_api_enabled:
@@ -459,6 +475,39 @@ def transcribe_video_to_json(
     return transcriber.transcribe_video_to_json(
         video_file_path, output_json_path, language
     )
+
+
+def main(
+    video_file_path: Optional[str] = None, language: Optional[str] = None
+) -> None:
+    """Programmatic entry point mirroring CLI behavior."""
+    # Default path (matches the CLI example below)
+    default_video_path = f"b_roll/{base_data_dir}/{VIDEO_GENERATION_DIR_NAME}/{INPUT_VIDEO_DIR_NAME}/extracted_audio.mp3"
+    default_language = (
+        # None,
+        "ru"
+    )
+
+    VIDEO_FILE_PATH = video_file_path or default_video_path
+    TRANSCRIPTION_LANGUAGE = (
+        language if language is not None else default_language
+    )
+
+    try:
+        logger.info(f"Video file: {VIDEO_FILE_PATH}")
+        logger.info(f"Language: {TRANSCRIPTION_LANGUAGE or 'auto-detect'}")
+
+        result_path = transcribe_video_to_json(
+            video_file_path=VIDEO_FILE_PATH, language=TRANSCRIPTION_LANGUAGE
+        )
+        logger.info(f"Transcription saved at: {result_path}")
+    except Exception as e:
+        logger.error(f"Failed to transcribe video: {e}")
+        logger.info(
+            "Usage: python word_level_transcriber.py [video_file_path] [language_code]"
+        )
+        logger.info("Example: python word_level_transcriber.py video.mp4 ru")
+        logger.info("Example: python word_level_transcriber.py video.mp4 auto")
 
 
 if __name__ == "__main__":
