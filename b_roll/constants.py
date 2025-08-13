@@ -45,7 +45,8 @@ ENABLE_VIDEO_GENERATION = False  # Set to False to skip video generation
 
 # B-roll generation configuration
 # MAX_SEGMENTS = 1  # Maximum number of b-roll segments to generate
-MAX_SEGMENTS = 20  # Maximum number of b-roll segments to generate
+# MAX_SEGMENTS = 20  # Maximum number of b-roll segments to generate
+MAX_SEGMENTS = 3  # Maximum number of b-roll segments to generate
 
 # B-roll distribution configuration
 # Controls how b-roll segments are distributed across video timeline
@@ -102,7 +103,6 @@ DEFAULT_PROMPTS_FILE = (
 # Standard file names
 TRANSCRIPTION_JSON_FILENAME = "transcription_verbose_to_json.json"
 WORKFLOW_PROMPTS_FILENAME = "workflow_generated_prompts.json"
-API_PROMPTS_FILENAME = "broll_prompts_api_generated.json"
 WORKFLOW_REPORT_FILENAME = "workflow_complete_report.json"
 DEFAULT_VIDEO_FILENAME = "video.mp4"
 ENV_FILENAME = ".env"
@@ -112,7 +112,6 @@ TRANSCRIPTION_JSON_PATH = (
     f"{AUDIO_TRANSCRIPT_DIR}/{TRANSCRIPTION_JSON_FILENAME}"
 )
 WORKFLOW_PROMPTS_PATH = f"{BROLL_PROMPTS_DIR}/{WORKFLOW_PROMPTS_FILENAME}"
-API_PROMPTS_PATH = f"{BROLL_PROMPTS_DIR}/{API_PROMPTS_FILENAME}"
 WORKFLOW_REPORT_PATH = f"{BASE_DATA_DIR_PATH}/{WORKFLOW_REPORT_FILENAME}"
 DEFAULT_VIDEO_PATH = f"{INPUT_VIDEO_DIR}/{DEFAULT_VIDEO_FILENAME}"
 
