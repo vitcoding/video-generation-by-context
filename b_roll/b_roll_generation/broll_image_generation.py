@@ -17,23 +17,43 @@ from typing import Dict, List, Optional
 
 from dotenv import load_dotenv
 
-sys.path.append(str(Path(__file__).parent.parent))
-import mock_api
-from config import config
-from constants import (
-    DEFAULT_IMAGES_OUTPUT_DIR,
-    DEFAULT_NUM_INFERENCE_STEPS,
-    DEFAULT_PROMPTS_FILE,
-    DEFAULT_SEED,
-    ENV_FILENAME,
-    FAL_MODEL_ENDPOINT,
-    IMAGE_ASPECT_RATIO,
-    PROJECT_ROOT_RELATIVE_PATH,
-)
-from logger_config import logger
-from mock_api import mock_fal_client, mock_requests
+# Replace fragile imports with robust package/direct execution handling
+try:
+    from .. import mock_api
+    from ..config import config
+    from ..constants import (
+        DEFAULT_IMAGES_OUTPUT_DIR,
+        DEFAULT_NUM_INFERENCE_STEPS,
+        DEFAULT_SEED,
+        ENV_FILENAME,
+        FAL_MODEL_ENDPOINT,
+        IMAGE_ASPECT_RATIO,
+        PROJECT_ROOT_RELATIVE_PATH,
+        WORKFLOW_PROMPTS_PATH,
+    )
+    from ..logger_config import logger
+    from ..mock_api import mock_fal_client, mock_requests
+    from .prompts import NEGATIVE_PROMPT_IMAGE
+except ImportError:
+    import sys as _sys
+    from pathlib import Path as _Path
 
-from .prompts import NEGATIVE_PROMPT_IMAGE
+    _sys.path.append(str(_Path(__file__).resolve().parents[2]))
+    from b_roll import mock_api
+    from b_roll.b_roll_generation.prompts import NEGATIVE_PROMPT_IMAGE
+    from b_roll.config import config
+    from b_roll.constants import (
+        DEFAULT_IMAGES_OUTPUT_DIR,
+        DEFAULT_NUM_INFERENCE_STEPS,
+        DEFAULT_SEED,
+        ENV_FILENAME,
+        FAL_MODEL_ENDPOINT,
+        IMAGE_ASPECT_RATIO,
+        PROJECT_ROOT_RELATIVE_PATH,
+        WORKFLOW_PROMPTS_PATH,
+    )
+    from b_roll.logger_config import logger
+    from b_roll.mock_api import mock_fal_client, mock_requests
 
 # Import real modules only if API is enabled
 if config.is_api_enabled:
@@ -85,7 +105,7 @@ class ImageGenerator:
 
     def load_broll_prompts(
         self,
-        prompts_file: str = DEFAULT_PROMPTS_FILE,
+        prompts_file: str = WORKFLOW_PROMPTS_PATH,
     ) -> Dict:
         """
         Load b-roll prompts from JSON file
@@ -97,16 +117,20 @@ class ImageGenerator:
             Dictionary with b-roll prompts data
         """
         try:
-            if not os.path.exists(prompts_file):
-                raise FileNotFoundError(
-                    f"Prompts file not found: {prompts_file}"
-                )
+            # Resolve to absolute path relative to project root if needed
+            file_path = Path(prompts_file)
+            if not file_path.is_absolute():
+                project_root = Path(__file__).parents[2]
+                file_path = (project_root / file_path).resolve()
 
-            with open(prompts_file, "r", encoding="utf-8") as f:
+            if not file_path.exists():
+                raise FileNotFoundError(f"Prompts file not found: {file_path}")
+
+            with open(file_path, "r", encoding="utf-8") as f:
                 prompts_data = json.load(f)
 
             logger.info(
-                f"✅ Loaded {len(prompts_data.get('broll_segments', []))} b-roll segments from {prompts_file}"
+                f"✅ Loaded {len(prompts_data.get('broll_segments', []))} b-roll segments from {file_path}"
             )
             return prompts_data
 
@@ -387,7 +411,7 @@ def test_image_generation():
 
 
 def generate_broll_images(
-    prompts_file: str = DEFAULT_PROMPTS_FILE,
+    prompts_file: str = WORKFLOW_PROMPTS_PATH,
     aspect_ratio: str = IMAGE_ASPECT_RATIO,
 ) -> bool:
     """
