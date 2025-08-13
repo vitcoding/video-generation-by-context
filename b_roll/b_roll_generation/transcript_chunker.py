@@ -13,14 +13,27 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, List, Tuple
 
-sys.path.append(str(Path(__file__).parent.parent))
-from constants import (
-    EARLY_DURATION_RATIO,
-    EARLY_SEGMENT_RATIO,
-    REMAINING_DURATION_RATIO,
-    REMAINING_SEGMENT_RATIO,
-)
-from logger_config import logger
+# Replace fragile imports with robust package/direct execution handling
+try:
+    from ..constants import (
+        EARLY_DURATION_RATIO,
+        EARLY_SEGMENT_RATIO,
+        REMAINING_DURATION_RATIO,
+        REMAINING_SEGMENT_RATIO,
+    )
+    from ..logger_config import logger
+except ImportError:
+    import sys as _sys
+    from pathlib import Path as _Path
+
+    _sys.path.append(str(_Path(__file__).resolve().parents[2]))
+    from b_roll.constants import (
+        EARLY_DURATION_RATIO,
+        EARLY_SEGMENT_RATIO,
+        REMAINING_DURATION_RATIO,
+        REMAINING_SEGMENT_RATIO,
+    )
+    from b_roll.logger_config import logger
 
 
 @dataclass
