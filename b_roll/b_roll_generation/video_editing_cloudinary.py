@@ -366,7 +366,7 @@ def process_video_with_broll(
             logger.info("🔧 [MOCK] Skipping cleanup in mock mode")
 
 
-if __name__ == "__main__":
+def main():
     # Example usage with new interface
     HEYGEN_VIDEO_PATH = f"b_roll/data/{VIDEO_GENERATION_DIR_NAME}/{INPUT_VIDEO_DIR_NAME}/{DEFAULT_VIDEO_FILENAME}"
 
@@ -385,3 +385,7 @@ if __name__ == "__main__":
 
     except Exception as e:
         logger.error(f"Failed to process video: {e}")
+
+
+if __name__ == "__main__":
+    main()
