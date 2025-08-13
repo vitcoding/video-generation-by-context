@@ -180,6 +180,9 @@ class ImageGenerator:
         """
         try:
             style_path = Path(BROLL_PROMPTS_DIR) / "global_style.json"
+            if not style_path.is_absolute():
+                project_root = Path(__file__).parents[2]
+                style_path = (project_root / style_path).resolve()
             if style_path.exists():
                 with open(style_path, "r", encoding="utf-8") as f:
                     return json.load(f)
@@ -191,8 +194,8 @@ class ImageGenerator:
         """
         Merge base image prompt with global style fields.
         """
-        if not style:
-            return base_prompt
+        # Always build tokens to allow mandatory demographics even without style json
+        style = style or {}
 
         tokens: List[str] = []
         prefix = str(style.get("prefix", "")).strip()

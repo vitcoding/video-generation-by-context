@@ -12,7 +12,8 @@ VIDEO_RESOLUTION = "1280x720"  # HD resolution
 # VIDEO_RESOLUTION = "3840x2160"  # 4K resolution
 
 # Model endpoints
-FAL_MODEL_ENDPOINT = "fal-ai/imagen4/preview/fast"
+# FAL_MODEL_ENDPOINT = "fal-ai/imagen4/preview/fast"
+FAL_MODEL_ENDPOINT = "fal-ai/flux/dev"
 KLING_MODEL_ENDPOINT = "fal-ai/kling-video/v1.6/pro/image-to-video"
 
 # Image aspect ratios
@@ -32,7 +33,7 @@ DEFAULT_CFG_SCALE = 0.7  # Default CFG scale for video generation
 # API configuration
 DEFAULT_SEED = 42  # Default random seed for reproducible results
 DEFAULT_NUM_INFERENCE_STEPS = (
-    15  # Default number of inference steps for image generation
+    12  # Default number of inference steps for image generation
     # 20  # Default number of inference steps for image generation
 )
 
