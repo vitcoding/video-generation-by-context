@@ -16,31 +16,55 @@ from pathlib import Path
 from typing import Dict, List, Optional
 
 from dotenv import load_dotenv
-from logger_config import logger
 
-sys.path.append(str(Path(__file__).parent.parent))
-import mock_api
-from config import config
-from constants import (
-    API_PROMPTS_FILENAME,
-    BROLL_PROMPTS_DIR_NAME,
-    DEFAULT_VIDEOS_OUTPUT_DIR,
-    IMAGE_ASPECT_RATIO,
-    IMAGES_INPUT_DIR_NAME,
-    KLING_MODEL_ENDPOINT,
-    VIDEO_DURATION,
-    VIDEO_FPS,
-    VIDEO_GENERATION_DIR_NAME,
-    VIDEO_RESOLUTION,
-    base_data_dir,
-)
-from mock_api import mock_fal_client, mock_requests
+# Replace fragile imports with robust package/direct execution handling
+try:
+    from .. import mock_api
+    from ..config import config
+    from ..constants import (
+        API_PROMPTS_FILENAME,
+        BROLL_PROMPTS_DIR_NAME,
+        DEFAULT_CFG_SCALE,
+        DEFAULT_VIDEOS_OUTPUT_DIR,
+        IMAGE_ASPECT_RATIO,
+        IMAGES_INPUT_DIR_NAME,
+        KLING_MODEL_ENDPOINT,
+        VIDEO_DURATION,
+        VIDEO_FPS,
+        VIDEO_GENERATION_DIR_NAME,
+        VIDEO_RESOLUTION,
+        base_data_dir,
+    )
+    from ..logger_config import logger
+    from ..mock_api import mock_fal_client, mock_requests
+    from .prompts import DEFAULT_VIDEO_DURATION, NEGATIVE_PROMPT_VIDEO
+except ImportError:
+    import sys as _sys
+    from pathlib import Path as _Path
 
-from .prompts import (
-    DEFAULT_CFG_SCALE,
-    DEFAULT_VIDEO_DURATION,
-    NEGATIVE_PROMPT_VIDEO,
-)
+    _sys.path.append(str(_Path(__file__).resolve().parents[2]))
+    from b_roll import mock_api
+    from b_roll.b_roll_generation.prompts import (
+        DEFAULT_VIDEO_DURATION,
+        NEGATIVE_PROMPT_VIDEO,
+    )
+    from b_roll.config import config
+    from b_roll.constants import (
+        API_PROMPTS_FILENAME,
+        BROLL_PROMPTS_DIR_NAME,
+        DEFAULT_CFG_SCALE,
+        DEFAULT_VIDEOS_OUTPUT_DIR,
+        IMAGE_ASPECT_RATIO,
+        IMAGES_INPUT_DIR_NAME,
+        KLING_MODEL_ENDPOINT,
+        VIDEO_DURATION,
+        VIDEO_FPS,
+        VIDEO_GENERATION_DIR_NAME,
+        VIDEO_RESOLUTION,
+        base_data_dir,
+    )
+    from b_roll.logger_config import logger
+    from b_roll.mock_api import mock_fal_client, mock_requests
 
 # Import real modules only if API is enabled
 if config.is_api_enabled:
