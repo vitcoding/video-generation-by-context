@@ -17,33 +17,66 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 import tiktoken
-
-sys.path.append(str(Path(__file__).parent.parent))
-from config import config
-from constants import (
-    AUDIO_TRANSCRIPT_DIR_NAME,
-    BROLL_PROMPTS_DIR,
-    DEFAULT_PROMPTS_FILE,
-    MAX_SEGMENTS,
-    OPENAI_MODEL,
-    TRANSCRIPTION_JSON_FILENAME,
-    VIDEO_DURATION,
-    VIDEO_FPS,
-    VIDEO_GENERATION_DIR_NAME,
-    VIDEO_RESOLUTION,
-    WORKFLOW_PROMPTS_FILENAME,
-    base_data_dir,
-)
 from dotenv import load_dotenv
-from logger_config import logger
-from mock_api import mock_openai_client
 from openai import OpenAI
-from transcript_chunker import TranscriptChunk, create_transcript_chunks
 
-sys.path.append(str(Path(__file__).parent))
-from prompts import SYSTEM_PROMPT_ANALYSIS, USER_PROMPT_TEMPLATE
+# Replace fragile imports with robust package/direct execution handling
+try:
+    from ..config import config
+    from ..constants import (
+        AUDIO_TRANSCRIPT_DIR_NAME,
+        BROLL_PROMPTS_DIR,
+        DEFAULT_PROMPTS_FILE,
+        EARLY_DURATION_RATIO,
+        EARLY_SEGMENT_RATIO,
+        MAX_SEGMENTS,
+        OPENAI_MODEL,
+        TRANSCRIPTION_JSON_FILENAME,
+        VIDEO_DURATION,
+        VIDEO_FPS,
+        VIDEO_GENERATION_DIR_NAME,
+        VIDEO_RESOLUTION,
+        WORKFLOW_PROMPTS_FILENAME,
+        base_data_dir,
+    )
+    from ..logger_config import logger
+    from ..mock_api import mock_openai_client
+    from .prompts import SYSTEM_PROMPT_ANALYSIS, USER_PROMPT_TEMPLATE
+    from .transcript_chunker import TranscriptChunk, create_transcript_chunks
+except ImportError:
+    import sys as _sys
+    from pathlib import Path as _Path
 
-CHUNK_DEBUG = False
+    _sys.path.append(str(_Path(__file__).resolve().parents[2]))
+    from b_roll.b_roll_generation.prompts import (
+        SYSTEM_PROMPT_ANALYSIS,
+        USER_PROMPT_TEMPLATE,
+    )
+    from b_roll.b_roll_generation.transcript_chunker import (
+        TranscriptChunk,
+        create_transcript_chunks,
+    )
+    from b_roll.config import config
+    from b_roll.constants import (
+        AUDIO_TRANSCRIPT_DIR_NAME,
+        BROLL_PROMPTS_DIR,
+        DEFAULT_PROMPTS_FILE,
+        EARLY_DURATION_RATIO,
+        EARLY_SEGMENT_RATIO,
+        MAX_SEGMENTS,
+        OPENAI_MODEL,
+        TRANSCRIPTION_JSON_FILENAME,
+        VIDEO_DURATION,
+        VIDEO_FPS,
+        VIDEO_GENERATION_DIR_NAME,
+        VIDEO_RESOLUTION,
+        WORKFLOW_PROMPTS_FILENAME,
+        base_data_dir,
+    )
+    from b_roll.logger_config import logger
+    from b_roll.mock_api import mock_openai_client
+
+# CHUNK_DEBUG = False
 # For debugging
 CHUNK_DEBUG = True
 
@@ -99,13 +132,6 @@ class BRollAnalyzer:
         """
         self.segment_duration = segment_duration
         self.max_segments = max_segments
-
-        # Import constants here to avoid circular imports
-        import sys
-        from pathlib import Path
-
-        sys.path.append(str(Path(__file__).parent.parent))
-        from constants import EARLY_DURATION_RATIO, EARLY_SEGMENT_RATIO
 
         # Use provided values or defaults from constants
         self.early_segment_ratio = (
@@ -218,13 +244,13 @@ class BRollAnalyzer:
             if isinstance(model, str) and model.startswith("gpt-4"):
                 encoding = tiktoken.encoding_for_model("gpt-4")
             else:
-                # Use cl100k_base encoding for other models (gpt-3.5, etc.)
                 encoding = tiktoken.get_encoding("cl100k_base")
 
-            # Count tokens
-            return len(encoding.encode(text))
+            # Encode the text and count tokens
+            tokens = encoding.encode(text)
+            return len(tokens)
         except Exception as e:
-            logger.info(f"⚠️ Token counting failed: {e}. Using rough estimate.")
+            logger.warning(f"⚠️ Token counting failed, using fallback: {e}")
             return len(text) // 4
 
     def load_transcript(self, file_path: str) -> Dict[str, Any]:
@@ -346,31 +372,37 @@ class BRollAnalyzer:
                 ],
                 temperature=0.2,
                 max_tokens=safe_max_output,
+                response_format={"type": "json_object"},
             )
 
             response_content = response.choices[0].message.content.strip()
 
+            # Unwrap JSON from code fences if present
+            if response_content.startswith("```"):
+                fence = (
+                    "```json"
+                    if response_content.startswith("```json")
+                    else "```"
+                )
+                json_start = response_content.find(fence) + len(fence)
+                json_end = response_content.rfind("```")
+                if json_end > json_start:
+                    response_content = response_content[
+                        json_start:json_end
+                    ].strip()
+
+            # Clip to outermost braces to drop trailing artifacts
+            start_idx = response_content.find("{")
+            end_idx = response_content.rfind("}")
+            candidate = (
+                response_content[start_idx : end_idx + 1]
+                if start_idx != -1 and end_idx != -1 and end_idx > start_idx
+                else response_content
+            )
+
             # Parse JSON response
             try:
-                # Check if response is wrapped in markdown code block
-                if response_content.startswith("```json"):
-                    # Extract JSON from markdown code block
-                    json_start = response_content.find("```json") + 7
-                    json_end = response_content.rfind("```")
-                    if json_end > json_start:
-                        response_content = response_content[
-                            json_start:json_end
-                        ].strip()
-                elif response_content.startswith("```"):
-                    # Handle generic code block
-                    json_start = response_content.find("```") + 3
-                    json_end = response_content.rfind("```")
-                    if json_end > json_start:
-                        response_content = response_content[
-                            json_start:json_end
-                        ].strip()
-
-                ai_analysis = json.loads(response_content)
+                ai_analysis = json.loads(candidate)
             except json.JSONDecodeError as e:
                 logger.info(f"❌ Error parsing AI response: {e}")
                 logger.info(f"Response content: {response_content}")
@@ -863,8 +895,10 @@ class BRollAnalyzer:
                 {
                     "segment_id": i + 1,
                     "start_time": round(segment.start_time, 2),
-                    "end_time": round(segment.end_time, 2),
-                    "duration": round(segment.duration, 2),
+                    "end_time": round(
+                        segment.start_time + self.segment_duration, 2
+                    ),
+                    "duration": round(self.segment_duration, 2),
                     "text_context": segment.text_context,
                     "image_prompt": segment.image_prompt,
                     "video_prompt": segment.video_prompt,

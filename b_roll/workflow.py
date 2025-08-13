@@ -225,8 +225,10 @@ class UnifiedWorkflow:
             transcript_data = self.broll_analyzer.load_transcript(
                 transcript_file
             )
-            broll_segments = self.broll_analyzer.analyze_transcript_with_ai(
-                transcript_data
+            broll_segments = (
+                self.broll_analyzer.analyze_transcript_with_adaptive_chunking(
+                    transcript_data
+                )
             )
 
             # Limit segments to max_segments
