@@ -11,112 +11,120 @@ This module contains all prompts used in the b-roll generation process:
 import sys
 from pathlib import Path
 
-sys.path.append(str(Path(__file__).parent.parent))
-from constants import (
-    DEFAULT_CFG_SCALE,
-    EARLY_DURATION_RATIO,
-    EARLY_SEGMENT_RATIO,
-    REMAINING_DURATION_RATIO,
-    REMAINING_SEGMENT_RATIO,
-    VIDEO_DURATION,
-)
+# Replace fragile imports with robust package/direct execution handling
+try:
+    from ..constants import (
+        EARLY_DURATION_RATIO,
+        EARLY_SEGMENT_RATIO,
+        REMAINING_DURATION_RATIO,
+        REMAINING_SEGMENT_RATIO,
+        VIDEO_DURATION,
+    )
+except ImportError:
+    import sys as _sys
+    from pathlib import Path as _Path
+
+    _sys.path.append(str(_Path(__file__).resolve().parents[2]))
+    from b_roll.constants import (
+        EARLY_DURATION_RATIO,
+        EARLY_SEGMENT_RATIO,
+        REMAINING_DURATION_RATIO,
+        REMAINING_SEGMENT_RATIO,
+        VIDEO_DURATION,
+    )
 
 # System prompts for AI analysis
-SYSTEM_PROMPT_ANALYSIS = """You are an expert video content analyst and cinematic director. Your task is to analyze a Russian audio transcript with word-level timestamps and identify the most important story themes for b-roll video generation.
+SYSTEM_PROMPT_ANALYSIS = """You are an expert video content analyst and cinematic director. Analyze a Russian audio transcript with word-level timestamps and select story themes for b-roll generation.
 
-Your analysis should:
-1. Identify distinct story themes in the transcript
-2. Create 5-second segments for each theme
-3. Evaluate importance of each theme (1-10 scale)
-4. Generate detailed image prompts for each theme
-5. Generate detailed video prompts for each theme
+Obey these rules:
+- Use ONLY the numeric values provided in the user message (total duration, target segment duration, number of segments, time windows, and quotas). Never invent values.
+- Start time policy:
+  - Select only segments that begin strictly after 10.0 seconds.
+  - start_time must be the EXACT 'start' timestamp of the first word in the chosen text span.
+  - Do not estimate or round; use precise floats from the word-level data.
+  - Each segment must fully fit the timeline: start_time <= (total_duration - target_segment_duration).
+- Distribution:
+  - Allocate segments exactly according to the time windows and quotas described in the user message (e.g., early vs remaining).
+  - Each segment must lie entirely within its assigned window.
+  - Segments must not overlap. For i<j: segments[j].start_time >= segments[i].start_time + target_segment_duration.
+- Language per field:
+  - text_context: Russian (1–2 short sentences).
+  - image_prompt, video_prompt, keywords: English only.
+- Image prompt:
+  - No text, letters, signs, captions, subtitles, logos, brands, watermarks.
+  - Concrete, visual, photorealistic if relevant; avoid repeating transcript text.
+  - Keep concise (<= 220 characters).
+- Video prompt:
+  - Cinematic, include: shot type, subject, action, setting, camera movement, lens, composition, lighting, color palette, mood, era/style.
+  - Dynamic (avoid static scenes). Keep concise (<= 300 characters).
+- Keywords:
+  - 5–8 lowercase English nouns, single words, no verbs or phrases.
+- Output:
+  - Return ONLY valid JSON, no markdown, no comments.
+  - Exactly the number of segments specified by the user.
+  - Sort segments by importance_score (highest first).
 
-Return your analysis in this exact JSON format:
-{{
+JSON structure (example, values are illustrative):
+{
   "segments": [
-    {{
-      "start_time": float,
-      "end_time": float,
-      "text_context": "context around this segment",
-      "theme_description": "brief description of the story theme",
-      "importance_score": float (1-10),
-      "keywords": ["keyword1", "keyword2"],
-      "image_prompt": "detailed prompt for image generation",
-      "video_prompt": "detailed cinematic prompt for video generation"
-    }}
+    {
+      "start_time": 12.34,
+      "end_time": 17.34,
+      "text_context": "Короткая русская выжимка контекста.",
+      "theme_description": "Brief English theme title.",
+      "importance_score": 7.5,
+      "keywords": ["business", "meeting", "office", "team", "discussion"],
+      "image_prompt": "English, concrete visual description, no text/logos/watermarks.",
+      "video_prompt": "English, cinematic description with camera, lens, movement, lighting, mood."
+    }
   ]
-}}
-
-⚠️ CRITICALLY IMPORTANT - START TIME REQUIREMENTS:
-- ONLY select themes that begin AFTER 10.0 seconds in the transcript
-- start_time must be EXACTLY taken from the word timestamps provided in the transcript data
-- Find the EXACT timestamp where your selected text segment begins by matching words to their timestamps
-- Use the "start" timestamp of the first word in your selected segment as the start_time
-- DO NOT estimate or approximate - use PRECISE timestamp values from the word-level data
-- Start timestamp must strictly correspond to the word timing data provided
-
-⚠️ DISTRIBUTION STRATEGY - B-ROLL PLACEMENT REQUIREMENTS:
-- Make full use of the requirements from the user's request
-- Specific distribution parameters will be provided in the user prompt
-
-Guidelines:
-- Image prompts should be detailed and specific for AI image generation
-- Image prompts should focus on characters, people, and visual scenes without any text, letters, or written content
-- Image prompts should avoid any mention of text, signs, labels, or written elements
-- Video prompts should include camera angles, lighting, movement, style
-- Video prompts should focus on dynamic scenes with character interactions and movement
-- Focus on themes that would benefit from visual support
-- Consider emotional impact and narrative flow
-- Keywords should be relevant to the theme
-- Text context should capture the essence of what's being said
-
-Only return valid JSON, no additional text."""
+}
+"""
 
 # User prompt template for transcript analysis
 USER_PROMPT_TEMPLATE = """
-Analyze this Russian audio transcript with word-level timestamps and create b-roll segments:
+Analyze this audiotranscript and produce exactly {max_segments} b-roll segments.
 
-Full transcript text: "{transcript_text}"
+Full transcript text:
+"{transcript_text}"
 
 Word-level timestamps:
 {word_timestamps}
 
-Total duration: {duration} seconds
-Target segment duration: {segment_duration} seconds
-Maximum segments to select: {max_segments}
+Global constraints:
+- Total duration: {duration} seconds
+- Target segment duration: {segment_duration} seconds
+- Strict start time policy:
+  - start_time must be EXACTLY the 'start' timestamp of the first word of the chosen text span.
+  - No estimation, no rounding.
 
-🔴 CRITICALLY IMPORTANT - EXACT START TIME MATCHING:
-- ONLY analyze and select themes that begin AFTER 10.0 seconds in the transcript
-- start_time must be EXACTLY taken from the word timestamps provided above
-- Find the specific words that begin your selected theme and use the "start" timestamp of the first word
-- DO NOT estimate or approximate start_time values - use the exact timestamps from the word data
-- Match your selected text segments to the word timestamps to get precise start_time values
-- If a theme starts before 10.0 seconds, skip it entirely and find other themes that start later
+Distribution requirements (use these quotas and windows):
+- Early window: from {early_start_time}s to {early_end_time}s, allocate exactly {early_segment_count} segments.
+- Remaining window: from {remaining_start_time}s to {remaining_end_time}s, allocate exactly {remaining_segment_count} segments.
+- Segments must not overlap and must fully fit into their window.
 
-🎯 SEGMENT SELECTION REQUIREMENT:
-- You MUST generate EXACTLY {max_segments} segments - no more, no less
-- If you cannot find enough high-quality themes, lower your importance threshold and include more segments
-- Better to have {max_segments} segments with varying importance than fewer segments
-- Use the full range of importance scores (1-10) to reach the required count
+Formatting and quality:
+- Return ONLY JSON with exactly {max_segments} segments.
+- Sort segments by importance_score (highest first).
+- text_context in Russian (1–2 short sentences).
+- image_prompt and video_prompt in English.
+- image_prompt: concise (<= 220 chars), detailed, photorealistic if relevant, no text/logos/watermarks.
+- video_prompt: concise (<= 300 chars), include: shot type, subject, action, setting, camera movement, lens, composition, lighting, color palette, mood, era/style; avoid static scenes.
+- keywords: 5–8 lowercase English nouns, no phrases or verbs.
 
-EXAMPLE: If you want to select a segment starting with "Граница между программой", find those exact words in the word timestamps and use the start time of "Граница".
+Example instruction:
+If selecting a segment starting with “Граница между программой…”, find these exact words in the timestamps and use the 'start' time of the first word “Граница”.
 
-ADDITIONAL REQUIREMENTS: 
-- For image prompts, avoid any text, letters, signs, or written content. Focus on visual scenes, people, objects, and environments without any textual elements.
-- Use precise timestamps that align with the word-level timing data provided.
-
-🔴 CRITICALLY IMPORTANT - RETURN ONLY JSON RESPONSE:
-- Return only the JSON response with segments sorted by importance_score (highest first).
+Return ONLY the JSON object.
 """
 
 # Negative prompts for image generation
-NEGATIVE_PROMPT_IMAGE = "blur, low quality, distorted, ugly, watermark, text, words, letters, signs, captions, subtitles, typography, fonts, writing, inscriptions, labels, logos, brand names, any alphanumeric characters, any symbols that represent text, any visual elements that could be interpreted as text"
+NEGATIVE_PROMPT_IMAGE = "blur, low quality, distorted, ugly, watermark, text, words, letters, signs, captions, subtitles, logos, brand names, any alphanumeric characters"
 
 # Negative prompts for video generation
-NEGATIVE_PROMPT_VIDEO = "blur, distort, low quality, static image, static scene, no movement, still frame"
+NEGATIVE_PROMPT_VIDEO = "blur, distort, low quality, static image, static scene, no movement, still frame, text, words, letters, captions, subtitles, logos, brand names, watermarks"
 
 # Default generation parameters
 DEFAULT_VIDEO_DURATION = str(
     int(VIDEO_DURATION)
 )  # Use VIDEO_DURATION from constants.py, convert to integer string
-# DEFAULT_CFG_SCALE moved to constants.py
