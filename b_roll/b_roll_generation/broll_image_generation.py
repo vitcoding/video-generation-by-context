@@ -327,19 +327,17 @@ class ImageGenerator:
             )
             filename = f"segment_{segment_id:02d}_{start_time:.1f}s_{end_time:.1f}s.png"
 
-            # Determine seed (use global if provided, else per-segment)
+            # Determine seed (use global if provided, else None to allow non-deterministic outputs)
             global_seed = global_style.get("seed") if global_style else None
             seed_to_use = (
-                int(global_seed)
-                if isinstance(global_seed, int)
-                else (DEFAULT_SEED + i)
+                int(global_seed) if isinstance(global_seed, int) else None
             )
 
             # Generate image
             image_result = self.generate_image(
                 prompt=final_prompt,
                 aspect_ratio=aspect_ratio,
-                seed=seed_to_use,  # Different seed for each segment unless global provided
+                seed=seed_to_use,
                 negative_prompt=(
                     f"{NEGATIVE_PROMPT_IMAGE}, {style_negative}".strip(", ")
                     if style_negative
