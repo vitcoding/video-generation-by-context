@@ -41,8 +41,8 @@ DEFAULT_NUM_INFERENCE_STEPS = (
 OPENAI_MODEL = "gpt-4.1-mini"
 
 # Workflow configuration
-# ENABLE_VIDEO_GENERATION = True  # Flag to enable/disable video generation
-ENABLE_VIDEO_GENERATION = False  # Set to False to skip video generation
+ENABLE_VIDEO_GENERATION = True  # Flag to enable/disable video generation
+# ENABLE_VIDEO_GENERATION = False  # Set to False to skip video generation
 
 # B-roll generation configuration
 # MAX_SEGMENTS = 1  # Maximum number of b-roll segments to generate
