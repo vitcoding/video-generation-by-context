@@ -251,14 +251,18 @@ class ImageGenerator:
         return ". ".join([t for t in tokens if t])
 
     def generate_images_for_broll_segments(
-        self, prompts_data: Dict, aspect_ratio: str = IMAGE_ASPECT_RATIO
+        self,
+        prompts_data: Dict,
+        aspect_ratio: str = IMAGE_ASPECT_RATIO,
+        selected_segment_ids: Optional[List[int]] = None,
     ) -> List[Dict]:
         """
-        Generate images for all b-roll segments
+        Generate images for all or selected b-roll segments.
 
         Args:
             prompts_data: Dictionary with b-roll prompts data
             aspect_ratio: Image aspect ratio (default: IMAGE_ASPECT_RATIO)
+            selected_segment_ids: Optional list of segment_id values to generate only specific segments
 
         Returns:
             List of dictionaries with generation results
@@ -269,6 +273,25 @@ class ImageGenerator:
         if not segments:
             logger.info("❌ No b-roll segments found in prompts data")
             return results
+
+        # Filter segments by provided IDs if any
+        if selected_segment_ids:
+            try:
+                id_set = {int(x) for x in selected_segment_ids}
+            except Exception:
+                id_set = set()
+            original_count = len(segments)
+            segments = [
+                s for s in segments if int(s.get("segment_id", 0)) in id_set
+            ]
+            logger.info(
+                f"📌 Filtering to segment_ids {sorted(id_set)}: {len(segments)}/{original_count} segments"
+            )
+            if not segments:
+                logger.info(
+                    "❌ No matching segments found for the requested IDs"
+                )
+                return results
 
         logger.info(
             f"🎨 Generating images for {len(segments)} b-roll segments..."
@@ -493,9 +516,12 @@ class ImageGenerator:
         logger.info(f"📊 Report saved to: {report_file}")
 
 
-def test_image_generation():
+def test_image_generation(selected_segment_ids: Optional[List[int]] = None):
     """
-    Test fal.ai image generation with b-roll prompts
+    Test fal.ai image generation with b-roll prompts. Can optionally target selected segments.
+
+    Args:
+        selected_segment_ids: Optional list of segment_id values to generate only specific segments
     """
     logger.info("🧪 Testing fal.ai Image Generator with B-roll Prompts")
     logger.info("=" * 60)
@@ -512,7 +538,9 @@ def test_image_generation():
 
         # Generate images for all segments
         results = generator.generate_images_for_broll_segments(
-            prompts_data, aspect_ratio=IMAGE_ASPECT_RATIO
+            prompts_data,
+            aspect_ratio=IMAGE_ASPECT_RATIO,
+            selected_segment_ids=selected_segment_ids,
         )
 
         # Summary
@@ -554,13 +582,15 @@ def test_image_generation():
 def generate_broll_images(
     prompts_file: str = WORKFLOW_PROMPTS_PATH,
     aspect_ratio: str = IMAGE_ASPECT_RATIO,
+    selected_segment_ids: Optional[List[int]] = None,
 ) -> bool:
     """
-    Generate images for all b-roll segments from prompts file
+    Generate images for b-roll segments from prompts file. Can optionally target selected segments.
 
     Args:
         prompts_file: Path to the prompts JSON file
         aspect_ratio: Image aspect ratio (default: IMAGE_ASPECT_RATIO)
+        selected_segment_ids: Optional list of segment_id values to generate only specific segments
 
     Returns:
         True if generation successful, False otherwise
@@ -580,7 +610,9 @@ def generate_broll_images(
 
         # Generate images for all segments
         results = generator.generate_images_for_broll_segments(
-            prompts_data, aspect_ratio
+            prompts_data,
+            aspect_ratio,
+            selected_segment_ids=selected_segment_ids,
         )
 
         # Summary
@@ -618,9 +650,9 @@ def generate_broll_images(
         return False
 
 
-def main():
-    """Run the image generation test"""
-    success = test_image_generation()
+def main(segment_ids: Optional[List[int]] = None):
+    """Run the image generation test with optional selection by segment IDs."""
+    success = test_image_generation(selected_segment_ids=segment_ids)
 
     if success:
         logger.info(
@@ -633,4 +665,37 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    # Optional CLI: --ids "1,3,5" or --ids 1 3 5
+    import argparse
+
+    parser = argparse.ArgumentParser(description="B-roll image generation")
+    parser.add_argument(
+        "--ids",
+        "--segments",
+        dest="ids",
+        type=str,
+        nargs="*",
+        help=(
+            "Segment IDs to generate. Accepts space or comma separated values. "
+            "Examples: --ids 1 3 5  or  --ids 1,3,5"
+        ),
+    )
+    args = parser.parse_args()
+
+    parsed_ids: Optional[List[int]] = None
+    if args.ids:
+        tokens: List[str] = []
+        # Support both space-separated and comma-separated inputs
+        for token in args.ids:
+            if "," in token:
+                tokens.extend([t for t in token.split(",") if t])
+            else:
+                tokens.append(token)
+        parsed_ids = []
+        for t in tokens:
+            try:
+                parsed_ids.append(int(t))
+            except ValueError:
+                pass
+
+    main(segment_ids=parsed_ids)

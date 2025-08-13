@@ -53,7 +53,7 @@ def main():
         # -------WORKFLOW CONFIGURATION 1 (DEFAULT)----------------------------
         workflow = UnifiedWorkflow(
             max_segments=MAX_SEGMENTS,
-            # start_stage="analysis",
+            start_stage="analysis",
         )
 
         # -------WORKFLOW CONFIGURATION 2--------------------------------------
