@@ -47,7 +47,7 @@ ENABLE_VIDEO_GENERATION = False  # Set to False to skip video generation
 # B-roll generation configuration
 # MAX_SEGMENTS = 1  # Maximum number of b-roll segments to generate
 # MAX_SEGMENTS = 20  # Maximum number of b-roll segments to generate
-MAX_SEGMENTS = 20  # Maximum number of b-roll segments to generate
+MAX_SEGMENTS = 3  # Maximum number of b-roll segments to generate
 
 # B-roll distribution configuration
 # Controls how b-roll segments are distributed across video timeline
