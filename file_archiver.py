@@ -44,9 +44,6 @@ class FileArchiver:
 
         # Files to move
         self.files_to_move = [
-            self.data_dir
-            / "broll_prompts"
-            / "workflow_generated_prompts.json",
             self.data_dir / "workflow_complete_report.json",
         ]
 
@@ -59,6 +56,9 @@ class FileArchiver:
 
         # Files to copy
         self.files_to_copy = [
+            self.data_dir
+            / "broll_prompts"
+            / "workflow_generated_prompts.json",
             self.data_dir
             / "audio_transcript"
             / "transcription_verbose_to_json.json",
